@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
+ import mongoose from "mongoose";
 
 const communitySchema = new mongoose.Schema({
-    community_name: {
+    name: {
         type: String,
         required: true,
         index: true,
@@ -16,15 +16,14 @@ const communitySchema = new mongoose.Schema({
 
     createdBy: {
         type: mongoose.Schema.Types.ObjectId, //_id is called ObjectID in mongo
-        ref: "Learners",
-        required: true,
+        ref: "User",
+        // required: true,
         index: true
     },
 
     mentor_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: " ",
-        required: true,
+        ref: "Mentor",
         index: true
     },
 

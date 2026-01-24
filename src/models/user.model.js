@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-    fullName: {
+    name: {
         type: String,
         required: true
     },
@@ -15,10 +15,20 @@ const userSchema = new mongoose.Schema({
         required: true
     },
     role: {
-        role: String,
+        type: String,
         enum: ["user", "mentor", "company", "admin"],
         default:"user"
     },
+    learner_type:{
+        type: String,
+        enum: ["self", "paid"],
+        default: "self"
+    },
+
+    phone:{
+        type:Number,
+        required:true
+    }
 }, { timestamps: true })
 
 export const User = mongoose.model("User", userSchema)

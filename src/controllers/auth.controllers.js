@@ -1,10 +1,10 @@
-import { User } from "../models/user.model"
+import { User } from "../models/user.model.js"
 import bcrypt from "bcryptjs"
 
 const registerUser = async (req, res) => {
     try {
-        const { fullName, email, password } = req.body
-        if (!fullName || !email || !password) {
+        const { name, email, password, phone } = req.body
+        if (!name || !email || !password) {
             return res.status(400).json({
                 message: "all features requrire"
             })
@@ -17,13 +17,14 @@ const registerUser = async (req, res) => {
             })
         }
 
-        const hashPassword=bcrypt.hash(password,10)
+        const hashPassword=await bcrypt.hash(password,10)
 
         const user=await User.create({
-            fullName,
+            name,
             email,
             password: hashPassword,
-            role: "user"
+            role: "user",
+            phone
         })
 
         return res.status(201).json({
@@ -33,9 +34,13 @@ const registerUser = async (req, res) => {
 
         
     } catch (error) {
-        console.error(error)
+        console.error(error.message)
         return res.status(500).json({
             message:"failed to create user"
         })
     }
+}
+
+export{
+    registerUser
 }

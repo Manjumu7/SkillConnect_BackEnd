@@ -1,39 +1,34 @@
 import mongoose from "mongoose";
+
 const batchSchema = new mongoose.Schema({
-    name:{
-        type:String,
-        required:true
-    },
-    description:{
-        type:String,
-        trim:true
-    },
-    classAt:{
-        type:Date,
-        required:true
+    name: { type: String, required: true },
+
+    description: { type: String, trim: true },
+
+    classAt: { type: Date, required: true },
+
+    mentorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true
     },
 
-    mentor:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"Mentor",
-        required:true,
-        index:true
+    status: {
+        type: String,
+        enum: ["upcoming", "ongoing", "completed"],
+        default: "upcoming"
     },
-    status:{
-        type:String,
-        enum:["upcomming","ongoing","completed"],
-        default:"upcomming",
-    },
-    classLink:{
-        type:String,
-    },
-    communityId:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"Community",
-        required:true
+
+    classLink: { type: String },
+
+    communityId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Community",
+        required: true,
+        index: true
     }
 
+}, { timestamps: true });
 
-},{timestamps:true})
-
-export const batch = mongoose.model("batch", batchSchema)
+export const Batch = mongoose.model("Batch", batchSchema);

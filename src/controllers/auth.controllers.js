@@ -22,16 +22,16 @@ const registerUser = async (req, res) => {
             })
         }
 
-        const oldUser = await User.findOne({email})
-        if (oldUser){
+        const oldUser = await User.findOne({ email })
+        if (oldUser) {
             return res.status(404).json({
-                message:"user is already regiested"
+                message: "user is already regiested"
             })
         }
 
-        const hashPassword=await bcrypt.hash(password,10)
+        const hashPassword = await bcrypt.hash(password, 10)
 
-        const user=await User.create({
+        const user = await User.create({
             name,
             email,
             password: hashPassword,
@@ -40,15 +40,15 @@ const registerUser = async (req, res) => {
         })
 
         return res.status(201).json({
-            message:"user created successfully",
+            message: "user created successfully",
             user
         })
 
-        
+
     } catch (error) {
         console.error(error.message)
         return res.status(500).json({
-            message:"failed to create user"
+            message: "failed to create user"
         })
     }
 }
@@ -74,7 +74,17 @@ const loginUser = async (req, res) => {
     }
 }
 
-export{
+const logoutUser = async (req, res) => {
+    try {
+        return res.status(200).json({ message: "logout successful" });
+    } catch (error) {
+        return res.status(500).json({ message: "logout failed" });
+    }
+};
+
+
+export {
     registerUser,
-    loginUser
+    loginUser,
+    logoutUser
 }

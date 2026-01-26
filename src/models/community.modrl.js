@@ -1,4 +1,4 @@
- import mongoose from "mongoose";
+import mongoose from "mongoose";
 
 const communitySchema = new mongoose.Schema({
     name: {
@@ -21,12 +21,6 @@ const communitySchema = new mongoose.Schema({
         index: true
     },
 
-    mentor_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Mentor",
-        index: true
-    },
-
     membersCount: {
         type: Number,
         default: 0,
@@ -36,6 +30,12 @@ const communitySchema = new mongoose.Schema({
         type: String,
         enum: ["public", "private"],
         default: "public",
+        index: true
+    },
+
+    isDeleted: {
+        type: Boolean,
+        default: false,
         index: true
     }
 }, { timestamps: true })

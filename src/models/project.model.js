@@ -1,37 +1,39 @@
 import mongoose from "mongoose";
-const projectSchema = new mongoose.schema({
-    name:{
-        type:String,
-        required:true,
+
+const projectSchema = new mongoose.Schema({
+    name: { type: String, required: true, trim: true },
+
+    description: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 1000
     },
-description:{
-    type:string,
-    required:true,
-    trim:true,
-    maxlength:1000
-},
-due_date:{
-    type:Date,
-    required:true,
-},
-mentorId:{
-    type:mongoose.schema.type.ObjectId,
-    required:true,
-    ref:"Mentor"
-},
-communityId:{
-    type:mongoose.schema.Type.ObjectId,
-    required:true,
-    ref:"Community"
-},
-status:{
-    type:String,
-    enum:["open","Close"],
-    default:"open"
-},
-isDeleted:{
-    type:Boolean,
-    default:false
-}
-})
-export const Project = mongoose.model("Project",projectSchema)
+
+    due_date: { type: Date, required: true },
+
+    mentorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true
+    },
+
+    communityId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Community",
+        required: true,
+        index: true
+    },
+
+    status: {
+        type: String,
+        enum: ["open", "closed"],
+        default: "open"
+    },
+
+    isDeleted: { type: Boolean, default: false }
+
+}, { timestamps: true });
+
+export const Project = mongoose.model("Project", projectSchema);

@@ -27,6 +27,11 @@ const batchSchema = new mongoose.Schema({
         ref: "Community",
         required: true,
         index: true
+    },
+
+    isDeleted: {
+        type: Boolean,
+        default: false
     }
 
 }, { timestamps: true });

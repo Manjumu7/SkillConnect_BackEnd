@@ -1,5 +1,5 @@
-import { Batch } from "../models/batch.model";
-import { Enrollment } from "../models/enrollment.model";
+import { Batch } from "../models/batch.model.js";
+import { Enrollment } from "../models/enrollment.model.js";
 
 export const createBatch = async (req, res) => {
     try {

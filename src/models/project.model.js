@@ -1,16 +1,24 @@
 import mongoose from "mongoose";
 
 const projectSchema = new mongoose.Schema({
-    name: { type: String, required: true, trim: true },
+    title: {
+        type: String,
+        required: true,
+        trim: true
+    },
 
     description: {
         type: String,
         required: true,
         trim: true,
-        maxlength: 1000
+        maxlength: 2000
     },
 
-    due_date: { type: Date, required: true },
+    dueDate: {
+        type: Date,
+        required: true,
+        index: true
+    },
 
     mentorId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -26,13 +34,24 @@ const projectSchema = new mongoose.Schema({
         index: true
     },
 
+    batchId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Batch",
+        default: null,
+        index: true
+    },
+
     status: {
         type: String,
-        enum: ["open", "closed"],
+        enum: ["open", "closed", "archived"],
         default: "open"
     },
 
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    }
 
 }, { timestamps: true });
 

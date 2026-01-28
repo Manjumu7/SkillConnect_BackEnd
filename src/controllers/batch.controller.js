@@ -1,3 +1,6 @@
+import { Batch } from "../models/batch.model";
+import { Enrollment } from "../models/enrollment.model";
+
 export const createBatch = async (req, res) => {
     try {
         if (!["admin", "mentor"].includes(req.user.role))

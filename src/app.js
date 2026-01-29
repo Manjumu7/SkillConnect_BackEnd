@@ -4,6 +4,7 @@ import authRouter from "./routes/auth.route.js"
 import communityRouter from "./routes/community.routes.js"
 import batchRouter from "./routes/batch.route.js"
 import certificateRouter from "./routes/certificate.route.js"
+import adminRouter from "./routes/admin.route.js"
 
 const app = express()
 
@@ -15,5 +16,6 @@ app.use("/auth", authRouter)
 app.use("/community", communityRouter)
 app.use("/batch", batchRouter)
 app.use("/certificate", certificateRouter)
+app.use("/admin", adminRouter)
 
 export default app;

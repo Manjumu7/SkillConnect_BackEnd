@@ -57,7 +57,8 @@ export const getCommunityMembers = async (req, res) => {
         res.json({
             success: true,
             membersCount: members.length,
-            members
+            members,
+            coummunity: community.name
         });
 
     } catch (err) {
@@ -118,7 +119,7 @@ export const enrollInCommunity = async (req, res) => {
             _id: communityId,
             isDeleted: false,
             visibility: "public"
-        });
+        })
 
         if (!community)
             return res.status(404).json({ message: "Community not found or private" });
@@ -141,6 +142,7 @@ export const enrollInCommunity = async (req, res) => {
         res.status(201).json({ success: true, enrollment });
 
     } catch (err) {
+        console.error(error)
         res.status(500).json({ message: err.message });
     }
 };

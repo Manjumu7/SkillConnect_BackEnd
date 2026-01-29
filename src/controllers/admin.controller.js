@@ -6,7 +6,7 @@ export const getAllUsers = async (req, res) => {
             return res.status(403).json({ message: "Admins only" })
         }
 
-        const students = (await User.find()).toSorted({ createdAt: 1 })
+        const students = await User.find().sort({ createdAt: 1 })
 
         return res.status(200).json({ message: "Fetched all students", students })
     } catch (error) {

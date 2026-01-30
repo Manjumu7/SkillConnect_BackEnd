@@ -6,6 +6,7 @@ import batchRouter from "./routes/batch.route.js"
 import certificateRouter from "./routes/certificate.route.js"
 import adminRouter from "./routes/admin.route.js"
 import projectRouter from "./routes/project.route.js"
+import submissionRouter from "./routes/submission.route.js"
 
 const app = express()
 
@@ -19,5 +20,6 @@ app.use("/batch", batchRouter)
 app.use("/certificate", certificateRouter)
 app.use("/admin", adminRouter)
 app.use("/project", projectRouter)
+app.use("/submission", submissionRouter)
 
 export default app;

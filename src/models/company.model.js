@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 const companySchema = new mongoose.Schema({
     company_name: {
         type: String,
-        required: true
+        required: true,
+        trim: true
     },
 
     description: {
@@ -24,7 +25,6 @@ const companySchema = new mongoose.Schema({
         lowercase: true
     },
 
-
     industry_type: {
         type: String,
         trim: true,
@@ -39,8 +39,14 @@ const companySchema = new mongoose.Schema({
         }
     ],
 
-    bannerImage: { type: String }  // Cloudinary URL
+    bannerImage: { type: String },
 
-}, { timestamps: true })
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    }
 
-export const company = mongoose.model("company", companySchema)
+}, { timestamps: true });
+
+export const Company = mongoose.model("Company", companySchema);

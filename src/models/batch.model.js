@@ -32,7 +32,10 @@ const batchSchema = new mongoose.Schema({
     isDeleted: {
         type: Boolean,
         default: false
-    }
+    },
+
+    bannerImage: { type: String }  // Cloudinary URL
+
 
 }, { timestamps: true });
 

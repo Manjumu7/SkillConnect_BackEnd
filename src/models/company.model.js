@@ -6,8 +6,8 @@ const companySchema = new mongoose.Schema({
         required: true
     },
 
-    description:{
-        type:String,
+    description: {
+        type: String,
         required: true,
         trim: true
     },
@@ -24,20 +24,23 @@ const companySchema = new mongoose.Schema({
         lowercase: true
     },
 
-    
+
     industry_type: {
         type: String,
         trim: true,
         required: true
     },
 
-    hiring_Requirment:[
+    hiring_Requirment: [
         {
-            type:String,
-            required:true,
-            trim:true
+            type: String,
+            required: true,
+            trim: true
         }
-    ]
-})
+    ],
+
+    bannerImage: { type: String }  // Cloudinary URL
+
+}, { timestamps: true })
 
 export const company = mongoose.model("company", companySchema)

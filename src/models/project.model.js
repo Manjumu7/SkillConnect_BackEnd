@@ -14,6 +14,8 @@ const projectSchema = new mongoose.Schema({
         maxlength: 2000
     },
 
+    bannerImage: { type: String }, // Cloudinary URL
+
     dueDate: {
         type: Date,
         required: true,

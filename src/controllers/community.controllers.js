@@ -1,4 +1,5 @@
 import { Community } from "../models/community.modrl.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 export const createCommunity = async (req, res) => {
     try {
@@ -11,10 +12,17 @@ export const createCommunity = async (req, res) => {
         const exists = await Community.findOne({ name, isDeleted: false });
         if (exists) return res.status(409).json({ message: "Community already exists" });
 
+        let bannerImage;
+        if (req.file) {
+            const result = await uploadToCloudinary(req.file.buffer, "communities");
+            bannerImage = result.secure_url;
+        }
+
         const community = await Community.create({
             name,
             description,
             visibility,
+            bannerImage,
             createdBy: req.user._id
         });
 
@@ -68,6 +76,11 @@ export const updateCommunity = async (req, res) => {
         if (description) updateData.description = description;
         if (visibility) updateData.visibility = visibility;
 
+        if (req.file) {
+            const result = await uploadToCloudinary(req.file.buffer, "communities");
+            updateData.bannerImage = result.secure_url;
+        }
+
         if (!Object.keys(updateData).length)
             return res.status(400).json({ message: "No valid fields to update" });
 
@@ -77,7 +90,8 @@ export const updateCommunity = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        if (!community) return res.status(404).json({ message: "Community not found" });
+        if (!community)
+            return res.status(404).json({ message: "Community not found" });
 
         res.json({ success: true, community });
 
@@ -85,6 +99,7 @@ export const updateCommunity = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
 
 export const deleteCommunity = async (req, res) => {
     try {

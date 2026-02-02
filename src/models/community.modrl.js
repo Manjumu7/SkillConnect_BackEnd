@@ -37,7 +37,10 @@ const communitySchema = new mongoose.Schema({
         type: Boolean,
         default: false,
         index: true
-    }
+    },
+
+    bannerImage: { type: String }  // Cloudinary URL
+
 }, { timestamps: true })
 
 export const Community = mongoose.model("Community", communitySchema)

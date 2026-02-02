@@ -1,5 +1,6 @@
 import { Batch } from "../models/batch.model.js";
 import { Enrollment } from "../models/enrollment.model.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 export const createBatch = async (req, res) => {
     try {
@@ -20,12 +21,19 @@ export const createBatch = async (req, res) => {
                 return res.status(403).json({ message: "Not mentor of this community" });
         }
 
+        let bannerImage;
+        if (req.file) {
+            const result = await uploadToCloudinary(req.file.buffer, "batches");
+            bannerImage = result.secure_url;
+        }
+
         const batch = await Batch.create({
             name,
             classAt,
             communityId,
             description,
             classLink,
+            bannerImage,
             mentorId: req.user.role === "mentor" ? req.user._id : req.body.mentorId
         });
 
@@ -90,10 +98,13 @@ export const updateBatch = async (req, res) => {
         const { batchId } = req.params;
         const { name, description, classAt, classLink, status } = req.body;
 
-        const batch = await Batch.findById(batchId);
+        const batch = await Batch.findOne({ _id: batchId, isDeleted: false });
         if (!batch) return res.status(404).json({ message: "Batch not found" });
 
-        if (req.user.role === "mentor" && batch.mentorId.toString() !== req.user._id.toString())
+        if (
+            req.user.role === "mentor" &&
+            batch.mentorId.toString() !== req.user._id.toString()
+        )
             return res.status(403).json({ message: "Not assigned to this batch" });
 
         const updateData = {};
@@ -102,6 +113,11 @@ export const updateBatch = async (req, res) => {
         if (classAt) updateData.classAt = classAt;
         if (classLink) updateData.classLink = classLink;
         if (status && req.user.role === "admin") updateData.status = status;
+
+        if (req.file) {
+            const result = await uploadToCloudinary(req.file.buffer, "batches");
+            updateData.bannerImage = result.secure_url;
+        }
 
         if (!Object.keys(updateData).length)
             return res.status(400).json({ message: "No valid fields to update" });
@@ -117,7 +133,6 @@ export const updateBatch = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 
 export const deleteBatch = async (req, res) => {
     try {

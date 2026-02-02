@@ -3,11 +3,12 @@ import mongoose from "mongoose";
 const companySchema = new mongoose.Schema({
     company_name: {
         type: String,
-        required: true
+        required: true,
+        trim: true
     },
 
-    description:{
-        type:String,
+    description: {
+        type: String,
         required: true,
         trim: true
     },
@@ -24,20 +25,28 @@ const companySchema = new mongoose.Schema({
         lowercase: true
     },
 
-    
     industry_type: {
         type: String,
         trim: true,
         required: true
     },
 
-    hiring_Requirment:[
+    hiring_Requirment: [
         {
-            type:String,
-            required:true,
-            trim:true
+            type: String,
+            required: true,
+            trim: true
         }
-    ]
-})
+    ],
 
-export const company = mongoose.model("company", companySchema)
+    bannerImage: { type: String },
+
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    }
+
+}, { timestamps: true });
+
+export const Company = mongoose.model("Company", companySchema);

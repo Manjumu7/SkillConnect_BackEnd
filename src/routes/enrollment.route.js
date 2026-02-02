@@ -6,7 +6,7 @@ import { authorizeRoles } from "../middlewares/authRole.middleware.js";
 
 const router = express.Router();
 
-router.post("/community/:communityId/enroll", verifyToken, authorizeRoles("admin"), enrollMentor);
+router.post("/community/:communityId/mentor", verifyToken, authorizeRoles("admin"), enrollMentor);
 
 router.get("/community/:communityId/members", verifyToken, authorizeRoles("admin",), getCommunityMembers);
 

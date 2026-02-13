@@ -2,6 +2,7 @@ import express from "express";
 import verifyToken from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
 import { createProject, getAllProjects, getProjectById, softDeleteProject, updateProject } from "../controllers/project.controller.js";
+import { authorizeRoles } from "../middlewares/authRole.middleware.js";
 
 
 const router = express.Router();
@@ -12,7 +13,7 @@ router.get("/:id", verifyToken, getProjectById);
 router.post(
     "/",
     verifyToken,
-    authorize("admin", "mentor"),
+    authorizeRoles("admin", "mentor"),
     upload.single("banner"),
     createProject
 );
@@ -20,7 +21,7 @@ router.post(
 router.put(
     "/:id",
     verifyToken,
-    authorize("admin", "mentor"),
+    authorizeRoles("admin", "mentor"),
     upload.single("banner"),
     updateProject
 );
@@ -28,7 +29,7 @@ router.put(
 router.delete(
     "/:id",
     verifyToken,
-    authorize("admin", "mentor"),
+    authorizeRoles("admin", "mentor"),
     softDeleteProject
 );
 

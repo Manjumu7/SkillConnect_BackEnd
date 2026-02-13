@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { v2 as cloudinary } from "cloudinary";
-import { Project } from "../models/project.model";
-import { uploadToCloudinary } from "../utils/cloudinary";
+import { Project } from "../models/project.model.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 export const createProject = async (req, res) => {
     try {

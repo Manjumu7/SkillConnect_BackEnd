@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
+    // Core identity fields used by SkillConnect
     name: {
         type: String,
         required: true
@@ -18,13 +19,15 @@ const userSchema = new mongoose.Schema({
         required: true
     },
 
+    // Shared role field used by both SkillConnect and Reelr features
     role: {
         type: String,
-        enum: ["student", "mentor", "admin", "company"],
+        enum: ["student", "mentor", "admin", "company", "viewer", "creator"],
         default: "student",
         index: true
     },
 
+    // Subscription / plan (SkillConnect)
     plan: {
         type: String,
         enum: ["free", "pro"],
@@ -35,6 +38,7 @@ const userSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+
     resume: {
         type: String
     },
@@ -50,10 +54,41 @@ const userSchema = new mongoose.Schema({
         }
     ],
 
+    // Profile fields primarily used by the Reelr-style features
+    username: {
+        type: String,
+        unique: true,
+        lowercase: true,
+        trim: true
+    },
+
+    fullName: {
+        type: String,
+        lowercase: true
+    },
+
+    profileImage: {
+        type: String
+    },
+
+    coverImage: {
+        type: String
+    },
+
+    // Keep existing longer bio constraint; Reelr uses it as well
     bio: {
         type: String,
-        maxlength: 700
-    }
+        maxlength: 700,
+        trim: true
+    },
+
+    // Friends graph for social features
+    friends: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    ]
 
 }, { timestamps: true })
 

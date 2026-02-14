@@ -2,6 +2,7 @@ import express from "express";
 import verifyToken from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/authRole.middleware.js";
 import { createSubmission, getMySubmissions, getProjectSubmissions, reviewSubmission, softDeleteSubmission } from "../controllers/submission.controller.js";
+import { upload } from "../middlewares/upload.middleware.js";
 
 
 const router = express.Router();

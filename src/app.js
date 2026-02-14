@@ -22,9 +22,6 @@ app.use("/certificate", certificateRouter);
 app.use("/admin", adminRouter);
 app.use("/project", projectRouter);
 app.use("/submission", submissionRouter);
-
-// Reelr feature integration (mounted under /reelr/*)
-// These routes share the same JWT tokens as the main auth flow.
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
 

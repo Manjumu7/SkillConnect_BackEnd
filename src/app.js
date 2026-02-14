@@ -1,4 +1,3 @@
-
 import express from "express"
 import dotenv from "dotenv";
 import cors from "cors";
@@ -15,15 +14,33 @@ import reelUserRouter from "./routes/reelUser.routes.js";
 const app = express();
 dotenv.config();
 
+// CORS configuration - must be before routes
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    // Add your production frontend URL here
+    // "https://your-frontend-domain.com"
+];
 
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: function (origin, callback) {
+            // Allow requests with no origin (like mobile apps or curl requests)
+            if (!origin) return callback(null, true);
+
+            if (allowedOrigins.indexOf(origin) === -1) {
+                const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+                return callback(new Error(msg), false);
+            }
+            return callback(null, true);
+        },
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        preflightContinue: false,
+        optionsSuccessStatus: 204
     })
 );
-
-
 
 app.use(express.json());
 
@@ -36,6 +53,5 @@ app.use("/project", projectRouter);
 app.use("/submission", submissionRouter);
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
-
 
 export default app;

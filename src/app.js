@@ -1,3 +1,4 @@
+
 import express from "express";
 import dotenv from "dotenv";
 import authRouter from "./routes/auth.route.js";
@@ -24,5 +25,6 @@ app.use("/project", projectRouter);
 app.use("/submission", submissionRouter);
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
+
 
 export default app;

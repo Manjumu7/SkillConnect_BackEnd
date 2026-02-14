@@ -8,7 +8,7 @@ export const enrollMentor = async (req, res) => {
             return res.status(403).json({ message: "Access denied" });
 
         const { communityId } = req.params;
-        const { userId, role, plan } = req.body;
+        const { userId } = req.body;
 
         if (!userId || !communityId)
             return res.status(400).json({ message: "userId and communityId required" });
@@ -27,7 +27,7 @@ export const enrollMentor = async (req, res) => {
         const exists = await Enrollment.findOne({ userId, communityId });
         if (exists) return res.status(409).json({ message: "Already enrolled" });
 
-        const enrollment = await Enrollment.create({ userId, communityId, role, plan });
+        const enrollment = await Enrollment.create({ userId, communityId ,role: "mentor"});
 
         await Community.findByIdAndUpdate(communityId, { $inc: { membersCount: 1 } });
 
@@ -57,7 +57,8 @@ export const getCommunityMembers = async (req, res) => {
         res.json({
             success: true,
             membersCount: members.length,
-            members
+            members,
+            coummunity: community.name
         });
 
     } catch (err) {
@@ -118,7 +119,7 @@ export const enrollInCommunity = async (req, res) => {
             _id: communityId,
             isDeleted: false,
             visibility: "public"
-        });
+        })
 
         if (!community)
             return res.status(404).json({ message: "Community not found or private" });
@@ -140,7 +141,8 @@ export const enrollInCommunity = async (req, res) => {
 
         res.status(201).json({ success: true, enrollment });
 
-    } catch (err) {
+    } catch (error) {
+        console.error(error)
         res.status(500).json({ message: err.message });
     }
 };

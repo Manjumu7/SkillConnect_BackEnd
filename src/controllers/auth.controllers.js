@@ -35,7 +35,7 @@ const registerUser = async (req, res) => {
             name,
             email,
             password: hashPassword,
-            role: "student",
+            role: "mentor",
             phone
         })
 
@@ -66,7 +66,7 @@ const loginUser = async (req, res) => {
 
         const accessToken = generateAccessToken(existingUser)
 
-        return res.status(200).json({ message: "login success", accessToken })
+        return res.status(200).json({ message: "login success", accessToken, user: existingUser })
 
     } catch (error) {
         console.error(error);

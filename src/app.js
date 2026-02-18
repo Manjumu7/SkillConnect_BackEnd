@@ -10,6 +10,7 @@ import projectRouter from "./routes/project.route.js";
 import submissionRouter from "./routes/submission.route.js";
 import reelRouter from "./routes/reel.routes.js";
 import reelUserRouter from "./routes/reelUser.routes.js";
+import moduleRoutes from "./routes/module.route.js"
 
 const app = express();
 dotenv.config();
@@ -53,5 +54,6 @@ app.use("/project", projectRouter);
 app.use("/submission", submissionRouter);
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
+app.use("/modules", moduleRoutes);
 
 export default app;

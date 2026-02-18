@@ -1,5 +1,26 @@
 import mongoose from "mongoose";
 
+const moduleSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true
+    },
+
+    description: {
+        type: String,
+        trim: true
+    },
+
+    topics: [
+        {
+            type: String,
+            trim: true
+        }
+    ]
+
+}, { timestamps: true });
+
 const communitySchema = new mongoose.Schema({
     name: {
         type: String,
@@ -15,9 +36,8 @@ const communitySchema = new mongoose.Schema({
     },
 
     createdBy: {
-        type: mongoose.Schema.Types.ObjectId, //_id is called ObjectID in mongo
+        type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        // required: true,
         index: true
     },
 
@@ -39,8 +59,13 @@ const communitySchema = new mongoose.Schema({
         index: true
     },
 
-    bannerImage: { type: String }  // Cloudinary URL
+    bannerImage: {
+        type: String
+    },
 
-}, { timestamps: true })
+    // 🔥 NEW FIELD
+    modules: [moduleSchema]
 
-export const Community = mongoose.model("Community", communitySchema)
+}, { timestamps: true });
+
+export const Community = mongoose.model("Community", communitySchema);

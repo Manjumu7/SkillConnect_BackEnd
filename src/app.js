@@ -1,6 +1,7 @@
-import express from "express"
+import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+
 import authRouter from "./routes/auth.route.js";
 import communityRouter from "./routes/community.routes.js";
 import batchRouter from "./routes/batch.route.js";
@@ -10,36 +11,21 @@ import projectRouter from "./routes/project.route.js";
 import submissionRouter from "./routes/submission.route.js";
 import reelRouter from "./routes/reel.routes.js";
 import reelUserRouter from "./routes/reelUser.routes.js";
-import moduleRoutes from "./routes/module.route.js"
+import moduleRoutes from "./routes/module.route.js";
 
 const app = express();
 dotenv.config();
 
-// CORS configuration - must be before routes
 const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    // Add your production frontend URL here
-    // "https://your-frontend-domain.com"
+    "https://frontend-lime-chi-7davixz9ck.vercel.app"
 ];
 
 app.use(
     cors({
-        origin: function (origin, callback) {
-            // Allow requests with no origin (like mobile apps or curl requests)
-            if (!origin) return callback(null, true);
-
-            if (allowedOrigins.indexOf(origin) === -1) {
-                const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-                return callback(new Error(msg), false);
-            }
-            return callback(null, true);
-        },
+        origin: allowedOrigins,
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        preflightContinue: false,
-        optionsSuccessStatus: 204
     })
 );
 

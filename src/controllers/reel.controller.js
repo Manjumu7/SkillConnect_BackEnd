@@ -7,9 +7,15 @@ const uploadReel = async (req, res) => {
   try {
     console.log("uploadReel controller hit");
 
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     if (!req.file) {
       return res.status(400).json({ message: "Video file not uploaded" });
     }
+
+    console.log("File:", req.file.mimetype, req.file.size);
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
@@ -39,7 +45,7 @@ const uploadReel = async (req, res) => {
       description,
       tags,
       category,
-      videoUrl: result.eager?.[0]?.secure_url, // always mp4
+      videoUrl: result.eager?.[0]?.secure_url,
       creator: req.user._id,
       thumbnail: cloudinary.url(result.public_id, {
         resource_type: "video",
@@ -48,17 +54,17 @@ const uploadReel = async (req, res) => {
       }),
     });
 
-
     return res
       .status(200)
       .json({ message: "Reel uploaded successfully", reel });
   } catch (error) {
-    console.error(error.message);
+    console.error("Upload error:", error);
     return res.status(500).json({
       message: "Failed to upload reel. Internal server error",
     });
   }
 };
+
 
 
 

@@ -1,12 +1,34 @@
 import { Community } from "../models/community.modrl.js";
 
+const toEmbedUrl = (url) => {
+    if (!url) return "";
+
+    if (url.includes("youtube.com/embed")) return url;
+
+    // convert watch?v= to embed
+    const match = url.match(/v=([^&]+)/);
+    if (match) {
+        return `https://www.youtube.com/embed/${match[1]}`;
+    }
+
+    return url; // fallback
+};
+
 export const addModule = async (req, res) => {
     try {
         const { communityId } = req.params;
+        const { title, description, topics, youtubeUrl } = req.body;
+
+        const newModule = {
+            title,
+            description,
+            topics,
+            youtubeUrl: toEmbedUrl(youtubeUrl)
+        };
 
         const updatedCommunity = await Community.findByIdAndUpdate(
             communityId,
-            { $push: { modules: req.body } },
+            { $push: { modules: newModule } },
             { new: true }
         );
 
@@ -20,7 +42,40 @@ export const addModule = async (req, res) => {
     }
 };
 
-// Delete a module
+
+// Update a module
+export const updateModule = async (req, res) => {
+    try {
+        const { communityId, moduleId } = req.params;
+        const { title, description, topics, youtubeUrl } = req.body;
+
+        const community = await Community.findOneAndUpdate(
+            {
+                _id: communityId,
+                "modules._id": moduleId
+            },
+            {
+                $set: {
+                    "modules.$.title": title,
+                    "modules.$.description": description,
+                    "modules.$.topics": topics,
+                    "modules.$.youtubeUrl": toEmbedUrl(youtubeUrl)
+                }
+            },
+            { new: true }
+        );
+
+        if (!community) {
+            return res.status(404).json({ message: "Module or community not found" });
+        }
+
+        res.json(community);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to update module" });
+    }
+};
+
+
 export const deleteModule = async (req, res) => {
     try {
         const { communityId, moduleId } = req.params;
@@ -38,35 +93,5 @@ export const deleteModule = async (req, res) => {
         res.json(updatedCommunity);
     } catch (err) {
         res.status(500).json({ message: "Failed to delete module" });
-    }
-};
-
-// Update a module
-export const updateModule = async (req, res) => {
-    try {
-        const { communityId, moduleId } = req.params;
-
-        const community = await Community.findOneAndUpdate(
-            {
-                _id: communityId,
-                "modules._id": moduleId
-            },
-            {
-                $set: {
-                    "modules.$.title": req.body.title,
-                    "modules.$.description": req.body.description,
-                    "modules.$.topics": req.body.topics
-                }
-            },
-            { new: true }
-        );
-
-        if (!community) {
-            return res.status(404).json({ message: "Module or community not found" });
-        }
-
-        res.json(community);
-    } catch (err) {
-        res.status(500).json({ message: "Failed to update module" });
     }
 };

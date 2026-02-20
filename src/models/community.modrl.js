@@ -17,53 +17,44 @@ const moduleSchema = new mongoose.Schema({
             type: String,
             trim: true
         }
-    ]
+    ],
+
+    youtubeUrl: { type: String }
 
 }, { timestamps: true });
 
 const communitySchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        index: true,
-        trim: true
-    },
+    name: { type: String, required: true, trim: true },
+    description: { type: String, trim: true, maxlength: 1000 },
 
-    description: {
-        type: String,
-        trim: true,
-        maxlength: 1000
-    },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
-    createdBy: {
+    students: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        index: true
-    },
+        ref: "User"
+    }],
 
-    membersCount: {
-        type: Number,
-        default: 0,
-    },
+    mentors: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }],
+
+    projects: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Project"
+    }],
+
+    membersCount: { type: Number, default: 0 },
 
     visibility: {
         type: String,
         enum: ["public", "private"],
-        default: "public",
-        index: true
+        default: "public"
     },
 
-    isDeleted: {
-        type: Boolean,
-        default: false,
-        index: true
-    },
+    isDeleted: { type: Boolean, default: false },
 
-    bannerImage: {
-        type: String
-    },
-
-    // 🔥 NEW FIELD
+    bannerImage: String,
     modules: [moduleSchema]
 
 }, { timestamps: true });

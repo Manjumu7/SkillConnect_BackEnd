@@ -35,14 +35,18 @@ export const createCommunity = async (req, res) => {
 
 export const getAllCommunities = async (req, res) => {
     try {
-        const { visibility } = req.query;
+        const { id } = req.params;
 
-        const filter = { isDeleted: false };
-        if (visibility) filter.visibility = visibility;
+        const community = await Community.findById(id)
+            .populate("students", "name email")
+            .populate("mentors", "name email")
+            .populate("projects");
 
-        const communities = await Community.find(filter).sort({ createdAt: -1 });
+        if (!community) {
+            return res.status(404).json({ message: "Community not found" });
+        }
 
-        res.json({ success: true, communities });
+        res.json({ success: true, community });
 
     } catch (err) {
         res.status(500).json({ message: err.message });

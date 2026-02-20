@@ -27,7 +27,7 @@ export const enrollMentor = async (req, res) => {
         const exists = await Enrollment.findOne({ userId, communityId });
         if (exists) return res.status(409).json({ message: "Already enrolled" });
 
-        const enrollment = await Enrollment.create({ userId, communityId ,role: "mentor"});
+        const enrollment = await Enrollment.create({ userId, communityId, role: "mentor" });
 
         await Community.findByIdAndUpdate(communityId, { $inc: { membersCount: 1 } });
 
@@ -145,4 +145,12 @@ export const enrollInCommunity = async (req, res) => {
         console.error(error)
         res.status(500).json({ message: err.message });
     }
+};
+
+export const getMyEnrollments = async (req, res) => {
+    const enrollments = await Enrollment.find({
+        userId: req.user._id
+    }).select("communityId");
+
+    res.json({ enrollments });
 };

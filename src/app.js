@@ -12,6 +12,7 @@ import submissionRouter from "./routes/submission.route.js";
 import reelRouter from "./routes/reel.routes.js";
 import reelUserRouter from "./routes/reelUser.routes.js";
 import moduleRoutes from "./routes/module.route.js";
+import userRoutes from "./routes/user.route.js"
 
 const app = express();
 dotenv.config();
@@ -41,5 +42,6 @@ app.use("/submission", submissionRouter);
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
 app.use("/modules", moduleRoutes);
+app.use("/users", userRoutes);
 
 export default app;

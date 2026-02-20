@@ -15,43 +15,43 @@ export const generateAccessToken = (user) => {
 
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password, phone } = req.body
+        const { name, email, password, phone, role } = req.body;
+
         if (!name || !email || !password) {
             return res.status(400).json({
-                message: "all features requrire"
-            })
+                message: "All required fields missing"
+            });
         }
 
-        const oldUser = await User.findOne({ email })
+        const oldUser = await User.findOne({ email });
         if (oldUser) {
-            return res.status(404).json({
-                message: "user is already regiested"
-            })
+            return res.status(409).json({
+                message: "User already registered"
+            });
         }
 
-        const hashPassword = await bcrypt.hash(password, 10)
+        const hashPassword = await bcrypt.hash(password, 10);
 
         const user = await User.create({
             name,
             email,
             password: hashPassword,
-            role: "mentor",
-            phone
-        })
+            phone,
+            role: "student"
+        });
 
         return res.status(201).json({
-            message: "user created successfully",
+            message: "User created successfully",
             user
-        })
-
+        });
 
     } catch (error) {
-        console.error(error.message)
+        console.error(error.message);
         return res.status(500).json({
-            message: "failed to create user"
-        })
+            message: "Failed to create user"
+        });
     }
-}
+};
 
 const loginUser = async (req, res) => {
     try {

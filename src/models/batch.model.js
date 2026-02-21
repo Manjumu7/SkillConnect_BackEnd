@@ -14,12 +14,6 @@ const batchSchema = new mongoose.Schema({
         index: true
     },
 
-    status: {
-        type: String,
-        enum: ["upcoming", "ongoing", "completed"],
-        default: "upcoming"
-    },
-
     classLink: { type: String },
 
     communityId: {
@@ -34,8 +28,7 @@ const batchSchema = new mongoose.Schema({
         default: false
     },
 
-    bannerImage: { type: String }  // Cloudinary URL
-
+    bannerImage: { type: String }
 
 }, { timestamps: true });
 

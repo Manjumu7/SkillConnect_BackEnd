@@ -2,29 +2,38 @@ import mongoose from "mongoose";
 import { v2 as cloudinary } from "cloudinary";
 import { Project } from "../models/project.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
+import { Enrollment } from "../models/enrollment.model.js";
+import { ProjectAssignment } from "../models/projectAssignment.model.js";
 
 export const createProject = async (req, res) => {
     try {
-        roleGuard(req.user);
+        if (req.user.role !== "mentor") {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            });
+        }
 
         const { title, description, dueDate, communityId, batchId } = req.body;
 
         if (!title || !description || !dueDate || !communityId) {
-            return res.status(400).json({ success: false, message: "Missing fields" });
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields"
+            });
         }
 
         let bannerImage;
 
         if (req.file) {
-            const resourceType = getResourceType(req.file.mimetype);
             const upload = await uploadToCloudinary(
                 req.file.buffer,
-                "projects/banners",
-                resourceType
+                "projects/banners"
             );
             bannerImage = upload.secure_url;
         }
 
+        // 1️⃣ Create Project
         const project = await Project.create({
             title,
             description,
@@ -35,9 +44,44 @@ export const createProject = async (req, res) => {
             batchId: batchId || null
         });
 
-        return res.status(201).json({ success: true, data: project });
+        // 2️⃣ Fetch all active PRO students of this community
+        const proStudents = await Enrollment.find({
+            communityId,
+            role: "student",
+            plan: "pro",
+            status: "active"
+        }).select("userId");
+
+        if (proStudents.length === 0) {
+            return res.status(201).json({
+                success: true,
+                message: "Project created. No pro students to assign.",
+                data: project
+            });
+        }
+
+        // 3️⃣ Prepare assignments
+        const assignments = proStudents.map(student => ({
+            userId: student.userId,
+            projectId: project._id,
+            status: "assigned"
+        }));
+
+        // 4️⃣ Insert assignments safely (ignore duplicates)
+        await ProjectAssignment.insertMany(assignments, {
+            ordered: false
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Project created and assigned to pro students",
+            data: project
+        });
+
     } catch (err) {
-        return res.status(err.message === "Unauthorized" ? 403 : 500).json({
+        console.error("Create project error:", err);
+
+        return res.status(500).json({
             success: false,
             message: err.message
         });

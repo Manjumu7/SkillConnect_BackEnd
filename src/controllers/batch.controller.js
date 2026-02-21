@@ -2,24 +2,74 @@ import { Batch } from "../models/batch.model.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
 
+
 export const createBatch = async (req, res) => {
     try {
-        if (!["admin", "mentor"].includes(req.user.role))
+        if (!["admin", "mentor"].includes(req.user.role)) {
             return res.status(403).json({ message: "Access denied" });
+        }
 
-        const { name, classAt, communityId, description, classLink } = req.body;
-        if (!name || !classAt || !communityId)
+        const { communityId } = req.params;
+        const { name, classAt, description, classLink, mentorId } = req.body;
+
+        if (!name || !classAt || !communityId) {
             return res.status(400).json({ message: "Missing required fields" });
+        }
 
+        let finalMentorId;
+
+        // Mentor validation
         if (req.user.role === "mentor") {
             const isMentor = await Enrollment.findOne({
                 userId: req.user._id,
                 communityId,
-                role: "mentor"
+                role: "mentor",
+                status: "active"
             });
-            if (!isMentor)
-                return res.status(403).json({ message: "Not mentor of this community" });
+
+            if (!isMentor) {
+                return res.status(403).json({
+                    message: "You are not an active mentor of this community"
+                });
+            }
+
+            finalMentorId = req.user._id;
         }
+
+        // Admin validation
+        if (req.user.role === "admin") {
+            if (!mentorId) {
+                return res.status(400).json({
+                    message: "mentorId is required when admin creates batch"
+                });
+            }
+
+            const validMentor = await Enrollment.findOne({
+                userId: mentorId,
+                communityId,
+                role: "mentor",
+                status: "active"
+            });
+
+            if (!validMentor) {
+                return res.status(400).json({
+                    message: "Selected user is not an active mentor of this community"
+                });
+            }
+
+            finalMentorId = mentorId;
+        }
+
+        // 🔥 Ensure only one active batch per community
+        await Batch.updateMany(
+            {
+                communityId,
+                isDeleted: false
+            },
+            {
+                $set: { isDeleted: true }
+            }
+        );
 
         let bannerImage;
         if (req.file) {
@@ -30,22 +80,36 @@ export const createBatch = async (req, res) => {
         const batch = await Batch.create({
             name,
             classAt,
-            communityId,
             description,
             classLink,
             bannerImage,
-            mentorId: req.user.role === "mentor" ? req.user._id : req.body.mentorId
+            communityId,
+            mentorId: finalMentorId
         });
 
+        // Assign new batch to all active pro students
         await Enrollment.updateMany(
-            { communityId, plan: "pro", status: "active" },
-            { $set: { batchId: batch._id } }
+            {
+                communityId,
+                role: "student",
+                plan: "pro",
+                status: "active"
+            },
+            {
+                $set: { batchId: batch._id }
+            }
         );
 
-        res.status(201).json({ success: true, batch });
+        return res.status(201).json({
+            success: true,
+            batch
+        });
 
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error("Create batch error:", err);
+        return res.status(500).json({
+            message: err.message
+        });
     }
 };
 
@@ -186,5 +250,45 @@ export const removeStudentFromBatch = async (req, res) => {
 
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+};
+
+export const upgradeToPro = async (req, res) => {
+    try {
+        const { communityId } = req.params;
+        const userId = req.user._id;
+
+        const enrollment = await Enrollment.findOne({
+            userId,
+            communityId,
+            role: "student",
+            status: "active"
+        });
+
+        if (!enrollment) {
+            return res.status(404).json({ message: "Enrollment not found" });
+        }
+
+        enrollment.plan = "pro";
+
+        // Assign latest batch if exists
+        const latestBatch = await Batch.findOne({
+            communityId,
+            isDeleted: false
+        }).sort({ createdAt: -1 });
+
+        if (latestBatch) {
+            enrollment.batchId = latestBatch._id;
+        }
+
+        await enrollment.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Upgraded to pro successfully"
+        });
+
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
     }
 };

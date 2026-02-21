@@ -14,6 +14,7 @@ import reelUserRouter from "./routes/reelUser.routes.js";
 import moduleRoutes from "./routes/module.route.js";
 import userRoutes from "./routes/user.route.js"
 import enrollmentRouter from "./routes/enrollment.route.js"
+import userDashboardRouter from "./routes/userDashboard.route.js"
 
 const app = express();
 dotenv.config();
@@ -36,14 +37,15 @@ app.use(express.json());
 app.use("/auth", authRouter);
 app.use("/enrollments", enrollmentRouter)
 app.use("/community", communityRouter);
-app.use("/batch", batchRouter);
+app.use("/batches", batchRouter);
 app.use("/certificate", certificateRouter);
 app.use("/admin", adminRouter);
-app.use("/project", projectRouter);
+app.use("/projects", projectRouter);
 app.use("/submission", submissionRouter);
 app.use("/reelr/reels", reelRouter);
 app.use("/reelr/users", reelUserRouter);
 app.use("/modules", moduleRoutes);
 app.use("/users", userRoutes);
+app.use("/userdashboards", userDashboardRouter)
 
 export default app;

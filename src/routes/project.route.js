@@ -13,7 +13,7 @@ router.get("/:id", verifyToken, getProjectById);
 router.post(
     "/",
     verifyToken,
-    authorizeRoles("admin", "mentor"),
+    authorizeRoles("mentor"),
     upload.single("banner"),
     createProject
 );

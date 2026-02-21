@@ -5,29 +5,15 @@ import cloudinary from "../utils/cloudinary.js";
 // Upload a new reel video
 const uploadReel = async (req, res) => {
   try {
-    console.log("uploadReel controller hit");
-
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ message: "Video file not uploaded" });
-    }
-
-    console.log("File:", req.file.mimetype, req.file.size);
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.file) return res.status(400).json({ message: "Video file not uploaded" });
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
           resource_type: "video",
           folder: "reelsFolder",
-          eager: [
-            {
-              format: "mp4",
-              quality: "auto",
-            },
-          ],
+          eager: [{ format: "mp4", quality: "auto" }],
           eager_async: true,
         },
         (error, result) => {
@@ -40,13 +26,16 @@ const uploadReel = async (req, res) => {
 
     const { title, description, tags, category } = req.body;
 
+    // FIX: Use primary secure_url if eager isn't ready yet
+    const finalVideoUrl = result.eager?.[0]?.secure_url || result.secure_url;
+
     const reel = await Reel.create({
       title,
       description,
       tags,
       category,
-      videoUrl: result.eager?.[0]?.secure_url,
-      creator: req.user._id,
+      videoUrl: finalVideoUrl,
+      creator: req.user._id, // Ensure your Schema uses 'creator'
       thumbnail: cloudinary.url(result.public_id, {
         resource_type: "video",
         format: "jpg",
@@ -54,13 +43,11 @@ const uploadReel = async (req, res) => {
       }),
     });
 
-    return res
-      .status(200)
-      .json({ message: "Reel uploaded successfully", reel });
+    return res.status(200).json({ message: "Reel uploaded successfully", reel });
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("DETAILED UPLOAD ERROR:", error); // Check your terminal for this!
     return res.status(500).json({
-      message: "Failed to upload reel. Internal server error",
+      message: error.message || "Failed to upload reel",
     });
   }
 };

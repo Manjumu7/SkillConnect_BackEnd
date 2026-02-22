@@ -166,3 +166,58 @@ export const getActiveMentors = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+export const getAllStudents = async (req, res) => {
+    try {
+        const students = await Enrollment.find({ role: "student" })
+            .populate("userId", "name email profileImage plan")
+            .populate("communityId", "name")
+            .lean();
+
+        // Normalize into the shape the frontend expects:
+        // user[] and community[] arrays (matching what Compass shows)
+        const normalized = students.map(e => ({
+            ...e,
+            user: e.userId ? [e.userId] : [],
+            community: e.communityId ? [e.communityId] : [],
+        }));
+
+        return res.status(200).json({
+            message: "Fetched all students",
+            students: normalized
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Server fat gaya" });
+    }
+};
+
+export const toggleBanStudent = async (req, res) => {
+    try {
+        const { enrollmentId } = req.params;
+
+        const enrollment = await Enrollment.findById(enrollmentId);
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: "Enrollment not found" });
+        }
+
+        enrollment.status = enrollment.status === "banned" ? "active" : "banned";
+        await enrollment.save();
+
+        return res.status(200).json({
+            success: true,
+            message: `Student ${enrollment.status === "banned" ? "banned" : "unbanned"} successfully`,
+            status: enrollment.status
+        });
+
+    } catch (error) {
+        console.error("toggleBanStudent error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update student status" });
+    }
+};
+
+
+
+
+
+

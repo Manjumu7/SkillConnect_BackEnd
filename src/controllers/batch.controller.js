@@ -1,7 +1,8 @@
 import { Batch } from "../models/batch.model.js";
+import { Community } from "../models/community.modrl.js";
 import { Enrollment } from "../models/enrollment.model.js";
+import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
-
 
 export const createBatch = async (req, res) => {
     try {
@@ -18,60 +19,32 @@ export const createBatch = async (req, res) => {
 
         let finalMentorId;
 
-        // Mentor validation
-        if (req.user.role === "mentor") {
-            const isMentor = await Enrollment.findOne({
-                userId: req.user._id,
-                communityId,
-                role: "mentor",
-                status: "active"
-            });
+        if (req.user.role === "admin") {
+            if (!mentorId) return res.status(400).json({ message: "mentorId is required" });
 
-            if (!isMentor) {
-                return res.status(403).json({
-                    message: "You are not an active mentor of this community"
-                });
+            const mentorUser = await User.findById(mentorId);
+            if (!mentorUser || mentorUser.role !== "mentor") {
+                return res.status(400).json({ message: "Selected user is not a valid mentor" });
             }
 
+            // Auto-enroll mentor specifically for THIS community
+            await Enrollment.findOneAndUpdate(
+                { userId: mentorId, communityId, role: "mentor" },
+                { $set: { status: "active" } },
+                { upsert: true, new: true }
+            );
+            finalMentorId = mentorId;
+        } else {
             finalMentorId = req.user._id;
         }
 
-        // Admin validation
-        if (req.user.role === "admin") {
-            if (!mentorId) {
-                return res.status(400).json({
-                    message: "mentorId is required when admin creates batch"
-                });
-            }
-
-            const validMentor = await Enrollment.findOne({
-                userId: mentorId,
-                communityId,
-                role: "mentor",
-                status: "active"
-            });
-
-            if (!validMentor) {
-                return res.status(400).json({
-                    message: "Selected user is not an active mentor of this community"
-                });
-            }
-
-            finalMentorId = mentorId;
-        }
-
-        // 🔥 Ensure only one active batch per community
+        // Archive ONLY batches belonging to this specific community
         await Batch.updateMany(
-            {
-                communityId,
-                isDeleted: false
-            },
-            {
-                $set: { isDeleted: true }
-            }
+            { communityId, isDeleted: false },
+            { $set: { isDeleted: true } }
         );
 
-        let bannerImage;
+        let bannerImage = "";
         if (req.file) {
             const result = await uploadToCloudinary(req.file.buffer, "batches");
             bannerImage = result.secure_url;
@@ -87,104 +60,62 @@ export const createBatch = async (req, res) => {
             mentorId: finalMentorId
         });
 
-        // Assign new batch to all active pro students
-        await Enrollment.updateMany(
-            {
-                communityId,
-                role: "student",
-                plan: "pro",
-                status: "active"
-            },
-            {
-                $set: { batchId: batch._id }
-            }
-        );
-
-        return res.status(201).json({
-            success: true,
-            batch
-        });
-
+        res.status(201).json({ success: true, batch });
     } catch (err) {
-        console.error("Create batch error:", err);
-        return res.status(500).json({
-            message: err.message
-        });
+        res.status(500).json({ message: err.message });
     }
 };
 
 
 export const getAllBatches = async (req, res) => {
     try {
-        if (req.user.role !== "admin")
-            return res.status(403).json({ message: "Only admins allowed" });
+        let query = {};
 
-        const batches = await Batch.find()
+        // If it's a student, only show non-deleted batches
+        if (req.user.role === "student") {
+            query.isDeleted = false;
+        }
+        // Admin and Mentor see everything (including isDeleted: true)
+
+        const batches = await Batch.find(query)
             .populate("mentorId", "name email role")
-            .populate("communityId", "name");
+            .populate("communityId", "name")
+            .sort({ createdAt: -1 });
 
         res.json({ success: true, count: batches.length, batches });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-export const getMyBatches = async (req, res) => {
-    try {
-        const userId = req.user._id;
 
-        const enrollments = await Enrollment.find({ userId }).select("batchId");
-
-        if (!enrollments.length)
-            return res.json({ success: true, batches: [] });
-
-        const batchIds = enrollments
-            .map(e => e.batchId)
-            .filter(Boolean);
-
-        const batches = await Batch.find({ _id: { $in: batchIds } })
-            .populate("mentorId", "name email")
-            .populate("communityId", "name");
-
-        res.json({ success: true, count: batches.length, batches });
-
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
 
 export const updateBatch = async (req, res) => {
     try {
-        if (!["admin", "mentor"].includes(req.user.role))
-            return res.status(403).json({ message: "Access denied" });
-
         const { batchId } = req.params;
-        const { name, description, classAt, classLink, status } = req.body;
+        const { name, description, classAt, classLink, status, mentorId } = req.body;
 
         const batch = await Batch.findOne({ _id: batchId, isDeleted: false });
         if (!batch) return res.status(404).json({ message: "Batch not found" });
 
-        if (
-            req.user.role === "mentor" &&
-            batch.mentorId.toString() !== req.user._id.toString()
-        )
-            return res.status(403).json({ message: "Not assigned to this batch" });
-
+        // Build the update object carefully
         const updateData = {};
         if (name) updateData.name = name;
         if (description) updateData.description = description;
         if (classAt) updateData.classAt = classAt;
         if (classLink) updateData.classLink = classLink;
+        if (mentorId) updateData.mentorId = mentorId;
         if (status && req.user.role === "admin") updateData.status = status;
 
+        // ONLY upload if a NEW file is provided
         if (req.file) {
-            const result = await uploadToCloudinary(req.file.buffer, "batches");
-            updateData.bannerImage = result.secure_url;
+            try {
+                const result = await uploadToCloudinary(req.file.buffer, "batches");
+                updateData.bannerImage = result.secure_url;
+            } catch (uploadError) {
+                return res.status(500).json({ message: "Banner upload failed" });
+            }
         }
-
-        if (!Object.keys(updateData).length)
-            return res.status(400).json({ message: "No valid fields to update" });
 
         const updated = await Batch.findByIdAndUpdate(batchId, updateData, {
             new: true,
@@ -194,30 +125,38 @@ export const updateBatch = async (req, res) => {
         res.json({ success: true, batch: updated });
 
     } catch (err) {
+        console.error("Update Batch Error:", err);
         res.status(500).json({ message: err.message });
     }
 };
 
 export const deleteBatch = async (req, res) => {
     try {
-        if (!["admin", "mentor"].includes(req.user.role))
-            return res.status(403).json({ message: "Access denied" });
-
         const { batchId } = req.params;
-
         const batch = await Batch.findById(batchId);
-        if (!batch || batch.isDeleted) return res.status(404).json({ message: "Batch not found" });
 
-        if (req.user.role === "mentor" && batch.mentorId.toString() !== req.user._id.toString())
-            return res.status(403).json({ message: "Not assigned to this batch" });
+        if (!batch) {
+            return res.status(404).json({ success: false, message: "Batch not found" });
+        }
 
-        batch.isDeleted = true;
+        // Mentor security check: Ensure mentorId exists before calling toString()
+        if (req.user.role === "mentor") {
+            if (!batch.mentorId || batch.mentorId.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ success: false, message: "Not assigned to this batch" });
+            }
+        }
+
+        // Toggle delete status
+        batch.isDeleted = !batch.isDeleted;
         await batch.save();
 
-        res.json({ success: true, message: "Batch deleted" });
-
+        res.json({
+            success: true,
+            message: batch.isDeleted ? "Batch successfully deactivated" : "Batch successfully restored",
+            isDeleted: batch.isDeleted // Return the new state
+        });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -292,3 +231,55 @@ export const upgradeToPro = async (req, res) => {
         return res.status(500).json({ message: err.message });
     }
 };
+
+export const getMyBatches = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const enrollments = await Enrollment.find({ userId }).select("batchId");
+
+        if (!enrollments.length)
+            return res.json({ success: true, batches: [] });
+
+        const batchIds = enrollments
+            .map(e => e.batchId)
+            .filter(Boolean);
+
+        const batches = await Batch.find({ _id: { $in: batchIds } })
+            .populate("mentorId", "name email")
+            .populate("communityId", "name");
+
+        res.json({ success: true, count: batches.length, batches });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+export const AllBatchedOfACommunity = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") return res.status(400).json({ message: "Admins only" })
+        const { communityId } = req.params;
+
+        if (!communityId) return res.status(400).json({ message: "CommunityID is required" })
+
+        const community = await Community.findById(communityId)
+        if (!community) return res.status(404).json({ message: "Community not found" })
+
+        // This fetches EVERYTHING including isDeleted: true
+        const batches = await Batch.find({ communityId })
+            .sort({ createdAt: -1 })
+            .populate("communityId", "title description visibility")
+            .populate("mentorId", "name")
+
+        return res.status(200).json({
+            success: true,
+            message: "Fetched all batches",
+            count: batches.length,
+            batches // frontend will check batch.isDeleted here
+        })
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ message: "Failed to fetch batches" })
+    }
+}

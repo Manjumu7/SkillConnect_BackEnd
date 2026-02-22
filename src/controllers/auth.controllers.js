@@ -82,6 +82,72 @@ const logoutUser = async (req, res) => {
     }
 };
 
+export const applyForMentor = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const {
+            expertise,
+            experience_years,
+            resume
+        } = req.body;
+
+        if (!resume || !expertise || !expertise.length) {
+            return res.status(400).json({
+                success: false,
+                message: "Resume and expertise are required"
+            });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // 🚫 Already approved
+        if (user.mentorStatus === "approved") {
+            return res.status(400).json({
+                success: false,
+                message: "You are already an approved mentor"
+            });
+        }
+
+        // 🚫 Already pending
+        if (user.mentorStatus === "pending") {
+            return res.status(400).json({
+                success: false,
+                message: "Your application is already under review"
+            });
+        }
+
+        // ✅ If rejected OR never applied → allow reapply
+        user.expertise = expertise;
+        user.experience_years = experience_years;
+        user.resume = resume;
+        user.mentorStatus = "pending";
+
+        // Clear previous rejection reason
+        user.mentorRejectionReason = null;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Mentor application submitted successfully"
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: "Application failed"
+        });
+    }
+};
 
 export {
     registerUser,

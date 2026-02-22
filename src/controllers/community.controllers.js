@@ -1,4 +1,6 @@
 import { Community } from "../models/community.modrl.js";
+import { Enrollment } from "../models/enrollment.model.js";
+import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 export const createCommunity = async (req, res) => {
@@ -120,5 +122,64 @@ export const deleteCommunity = async (req, res) => {
 
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+};
+
+
+export const allEnrolledStudentsOfACommunity = async (req, res) => {
+    try {
+        const { communityId } = req.params;
+
+        if (!communityId) {
+            return res.status(400).json({
+                success: false,
+                message: "CommunityId is required"
+            });
+        }
+
+        // Optional but recommended: verify community exists
+        const communityExists = await Community.exists({ _id: communityId });
+
+        if (!communityExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Community not found"
+            });
+        }
+
+        // Fetch only ACTIVE students
+        const enrolledStudents = await Enrollment.find({
+            communityId,
+            role: "student",
+            status: "active"
+        })
+            .populate("userId", "name email plan profileImage")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Format clean response for frontend
+        const students = enrolledStudents.map((enrollment) => ({
+            enrollmentId: enrollment._id,
+            userId: enrollment.userId?._id,
+            name: enrollment.userId?.name,
+            email: enrollment.userId?.email,
+            plan: enrollment.plan,
+            profileImage: enrollment.userId?.profileImage,
+            enrolledAt: enrollment.createdAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            count: students.length,
+            students
+        });
+
+    } catch (error) {
+        console.error("Error fetching enrolled students:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch enrolled students"
+        });
     }
 };

@@ -24,8 +24,15 @@ export const enrollMentor = async (req, res) => {
         if (!community)
             return res.status(404).json({ message: "Community not found" });
 
-        const exists = await Enrollment.findOne({ userId, communityId });
-        if (exists) return res.status(409).json({ message: "Already enrolled" });
+        // --- NEW BUSINESS RULE CHECK: ONE MENTOR PER COMMUNITY ---
+        // Search if ANY enrollment exists for this community with the role of 'mentor'
+        const existingMentor = await Enrollment.findOne({ communityId, role: "mentor" });
+        if (existingMentor) {
+            return res.status(409).json({
+                message: "This community already has an assigned mentor"
+            });
+        }
+        // ---------------------------------------------------------
 
         const enrollment = await Enrollment.create({ userId, communityId, role: "mentor" });
 

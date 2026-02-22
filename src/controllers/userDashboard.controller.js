@@ -38,26 +38,25 @@ export const getMyBatches = async (req, res) => {
     try {
         const userId = req.user._id;
 
+        // 1. Find all active enrollments for this student (regardless of plan)
         const enrollments = await Enrollment.find({
             userId,
-            role: "student",
-            status: "active",
-            plan: "pro",
-            batchId: { $ne: null }
-        }).select("batchId");
+            status: "active"
+            // plan: "pro" <- Removed to allow all joined communities to show
+        }).select("communityId");
 
         if (enrollments.length === 0) {
             return res.status(200).json({
                 success: true,
-                count: 0,
                 batches: []
             });
         }
 
-        const batchIds = enrollments.map(e => e.batchId);
+        const communityIds = enrollments.map(e => e.communityId);
 
+        // 2. Find batches where isDeleted is false for those communities
         const batches = await Batch.find({
-            _id: { $in: batchIds },
+            communityId: { $in: communityIds },
             isDeleted: false
         })
             .populate("mentorId", "name profileImage")
@@ -65,31 +64,19 @@ export const getMyBatches = async (req, res) => {
             .sort({ classAt: 1 });
 
         const now = new Date();
-
-        const formattedBatches = batches.map(batch => {
-            const status =
-                new Date(batch.classAt) > now
-                    ? "upcoming"
-                    : "completed";
-
-            return {
-                ...batch.toObject(),
-                status
-            };
-        });
+        const formattedBatches = batches.map(batch => ({
+            ...batch.toObject(),
+            status: new Date(batch.classAt) > now ? "upcoming" : "completed"
+        }));
 
         return res.status(200).json({
             success: true,
-            count: formattedBatches.length,
             batches: formattedBatches
         });
 
     } catch (error) {
         console.error("Error fetching batches:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
 

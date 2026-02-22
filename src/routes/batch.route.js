@@ -7,13 +7,13 @@ import { upload } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
 
-router.post("/:communityId", verifyToken, authorizeRoles("admin", "mentor"), upload.single("bannerImage"), createBatch);
+router.post("/:communityId", verifyToken, authorizeRoles("admin", "mentor"), upload.single("banner"), createBatch);
 
 router.get("/", verifyToken, authorizeRoles("admin"), getAllBatches);
 
 router.get("/my", verifyToken, authorizeRoles("mentor", "student"), getMyBatches);
 
-router.put("/:batchId", verifyToken, authorizeRoles("admin", "mentor"), upload.single("bannerImage"), updateBatch);
+router.put("/:batchId", verifyToken, authorizeRoles("admin", "mentor"), upload.single("banner"), updateBatch);
 
 router.delete("/:batchId", verifyToken, authorizeRoles("admin", "mentor"), deleteBatch);
 

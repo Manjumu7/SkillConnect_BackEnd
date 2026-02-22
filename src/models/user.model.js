@@ -88,7 +88,19 @@ const userSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         }
-    ]
+    ],
+
+    mentorStatus: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+        index: true
+    },
+
+    mentorRejectionReason: {
+        type: String,
+        default: null
+    }
 
 }, { timestamps: true })
 

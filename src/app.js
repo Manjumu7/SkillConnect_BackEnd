@@ -15,6 +15,7 @@ import moduleRoutes from "./routes/module.route.js";
 import userRoutes from "./routes/user.route.js"
 import enrollmentRouter from "./routes/enrollment.route.js"
 import userDashboardRouter from "./routes/userDashboard.route.js"
+import adminDashboardRouter from "./routes/adminDashboard.route.js"
 
 const app = express();
 dotenv.config();
@@ -47,5 +48,6 @@ app.use("/reelr/users", reelUserRouter);
 app.use("/modules", moduleRoutes);
 app.use("/users", userRoutes);
 app.use("/userdashboards", userDashboardRouter)
+app.use("/admindashboards", adminDashboardRouter)
 
 export default app;

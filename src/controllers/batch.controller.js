@@ -1,48 +1,67 @@
+import mongoose from "mongoose";
 import { Batch } from "../models/batch.model.js";
 import { Community } from "../models/community.modrl.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { User } from "../models/user.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
 
+
 export const createBatch = async (req, res) => {
     try {
         if (!["admin", "mentor"].includes(req.user.role)) {
-            return res.status(403).json({ message: "Access denied" });
+            return res.status(403).json({ success: false, message: "Access denied" });
         }
 
         const { communityId } = req.params;
         const { name, classAt, description, classLink, mentorId } = req.body;
 
-        if (!name || !classAt || !communityId) {
-            return res.status(400).json({ message: "Missing required fields" });
+        if (!mongoose.Types.ObjectId.isValid(communityId)) {
+            return res.status(400).json({ success: false, message: "Invalid community ID" });
+        }
+
+        if (!name || !classAt) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        const parsedDate = new Date(classAt);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ success: false, message: "Invalid class date" });
+        }
+
+        const community = await Community.findById(communityId);
+        if (!community) {
+            return res.status(404).json({ success: false, message: "Community not found" });
         }
 
         let finalMentorId;
 
         if (req.user.role === "admin") {
-            if (!mentorId) return res.status(400).json({ message: "mentorId is required" });
+            if (!mentorId || !mongoose.Types.ObjectId.isValid(mentorId)) {
+                return res.status(400).json({ success: false, message: "Valid mentorId required" });
+            }
 
             const mentorUser = await User.findById(mentorId);
             if (!mentorUser || mentorUser.role !== "mentor") {
-                return res.status(400).json({ message: "Selected user is not a valid mentor" });
+                return res.status(400).json({ success: false, message: "Invalid mentor" });
             }
 
-            // Auto-enroll mentor specifically for THIS community
-            await Enrollment.findOneAndUpdate(
-                { userId: mentorId, communityId, role: "mentor" },
-                { $set: { status: "active" } },
-                { upsert: true, new: true }
-            );
             finalMentorId = mentorId;
+
         } else {
             finalMentorId = req.user._id;
-        }
 
-        // Archive ONLY batches belonging to this specific community
-        await Batch.updateMany(
-            { communityId, isDeleted: false },
-            { $set: { isDeleted: true } }
-        );
+            // Ensure mentor is enrolled in this community
+            const mentorEnrollment = await Enrollment.findOne({
+                userId: req.user._id,
+                communityId,
+                role: "mentor",
+                status: "active"
+            });
+
+            if (!mentorEnrollment) {
+                return res.status(403).json({ success: false, message: "Not assigned to this community" });
+            }
+        }
 
         let bannerImage = "";
         if (req.file) {
@@ -52,39 +71,46 @@ export const createBatch = async (req, res) => {
 
         const batch = await Batch.create({
             name,
-            classAt,
             description,
+            classAt: parsedDate,
             classLink,
             bannerImage,
             communityId,
             mentorId: finalMentorId
         });
 
-        res.status(201).json({ success: true, batch });
+        return res.status(201).json({
+            success: true,
+            data: batch
+        });
+
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        return res.status(500).json({ success: false, message: err.message });
     }
 };
 
 
 export const getAllBatches = async (req, res) => {
     try {
-        let query = {};
+        const query = {};
 
-        // If it's a student, only show non-deleted batches
         if (req.user.role === "student") {
             query.isDeleted = false;
         }
-        // Admin and Mentor see everything (including isDeleted: true)
 
         const batches = await Batch.find(query)
-            .populate("mentorId", "name email role")
+            .populate("mentorId", "name email")
             .populate("communityId", "name")
             .sort({ createdAt: -1 });
 
-        res.json({ success: true, count: batches.length, batches });
+        return res.json({
+            success: true,
+            count: batches.length,
+            batches
+        });
+
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        return res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -283,3 +309,55 @@ export const AllBatchedOfACommunity = async (req, res) => {
         return res.status(500).json({ message: "Failed to fetch batches" })
     }
 }
+
+
+export const getMentorCommunityBatches = async (req, res) => {
+    try {
+        if (req.user.role !== "mentor") {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            });
+        }
+
+        // 1️⃣ Get mentor's active community enrollments
+        const mentorEnrollments = await Enrollment.find({
+            userId: req.user._id,
+            role: "mentor",
+            status: "active"
+        }).select("communityId");
+
+        if (!mentorEnrollments.length) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                batches: []
+            });
+        }
+
+        // 2️⃣ Extract community IDs
+        const communityIds = mentorEnrollments.map(e => e.communityId);
+
+        // 3️⃣ Fetch batches only from assigned communities
+        const batches = await Batch.find({
+            communityId: { $in: communityIds },
+            isDeleted: false
+        })
+            .populate("communityId", "name")
+            .populate("mentorId", "name email")
+            .sort({ classAt: 1 });
+
+        return res.status(200).json({
+            success: true,
+            count: batches.length,
+            batches
+        });
+
+    } catch (err) {
+        console.error("Get Mentor Batches Error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch batches"
+        });
+    }
+};

@@ -13,12 +13,16 @@ console.log("Cloudinary configured:", {
     key: process.env.CLOUDINARY_API_KEY,
 });
 
-// helper function
 export const uploadToCloudinary = (buffer, folder, resourceType) => {
     return new Promise((resolve, reject) => {
         cloudinary.uploader
             .upload_stream(
-                { folder, resource_type: resourceType },
+                {
+                    folder,
+                    resource_type: resourceType,
+                    type: "upload",      // <--- Explicitly set to public upload
+                    access_mode: "public" // <--- Ensure it's not restricted
+                },
                 (error, result) => {
                     if (error) reject(error);
                     else resolve(result);

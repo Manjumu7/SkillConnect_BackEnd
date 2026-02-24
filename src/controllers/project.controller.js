@@ -127,7 +127,12 @@ export const createProject = async (req, res) => {
 
 export const updateProject = async (req, res) => {
     try {
-        roleGuard(req.user);
+        if (req.user.role !== "mentor") {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            });
+        }
 
         const { id } = req.params;
 
@@ -138,13 +143,11 @@ export const updateProject = async (req, res) => {
             });
         }
 
-        const filter = { _id: id, isDeleted: false };
-
-        if (req.user.role === "mentor") {
-            filter.mentorId = req.user._id;
-        }
-
-        const project = await Project.findOne(filter);
+        const project = await Project.findOne({
+            _id: id,
+            mentorId: req.user._id,
+            isDeleted: false
+        });
 
         if (!project) {
             return res.status(404).json({
@@ -153,21 +156,30 @@ export const updateProject = async (req, res) => {
             });
         }
 
-        // ✅ Allowed fields only
         const allowedFields = ["title", "description", "dueDate", "status"];
 
-        allowedFields.forEach(field => {
+        for (const field of allowedFields) {
             if (req.body[field] !== undefined) {
-                project[field] = req.body[field];
+
+                if (field === "dueDate") {
+                    const parsed = new Date(req.body.dueDate);
+                    if (isNaN(parsed.getTime()) || parsed <= new Date()) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Due date must be a valid future date"
+                        });
+                    }
+                    project.dueDate = parsed;
+                } else {
+                    project[field] = req.body[field];
+                }
             }
-        });
+        }
 
         if (req.file) {
-            const resourceType = getResourceType(req.file.mimetype);
             const upload = await uploadToCloudinary(
                 req.file.buffer,
-                "projects/banners",
-                resourceType
+                "projects/banners"
             );
             project.bannerImage = upload.secure_url;
         }
@@ -180,9 +192,10 @@ export const updateProject = async (req, res) => {
         });
 
     } catch (err) {
-        return res.status(err.message === "Unauthorized" ? 403 : 500).json({
+        console.error(err);
+        return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Server error"
         });
     }
 };
@@ -190,25 +203,27 @@ export const updateProject = async (req, res) => {
 
 export const softDeleteProject = async (req, res) => {
     try {
-        roleGuard(req.user);
+        if (req.user.role !== "mentor") {
+            return res.status(403).json({
+                success: false,
+                message: "Access denied"
+            });
+        }
 
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ success: false, message: "Invalid ID" });
+            return res.status(400).json({
+                success: false,
+                message: "Invalid ID"
+            });
         }
 
-        const filter = { _id: id, isDeleted: false };
-
-        if (req.user.role === "mentor") {
-            filter.mentorId = req.user._id;
-        }
-
-        const project = await Project.findOneAndUpdate(
-            filter,
-            { isDeleted: true, status: "archived" },
-            { new: true }
-        );
+        const project = await Project.findOne({
+            _id: id,
+            mentorId: req.user._id,
+            isDeleted: false
+        });
 
         if (!project) {
             return res.status(404).json({
@@ -217,11 +232,26 @@ export const softDeleteProject = async (req, res) => {
             });
         }
 
-        return res.json({ success: true, message: "Project deleted" });
+        project.isDeleted = true;
+        project.status = "archived";
+        await project.save();
+
+        // Archive assignments
+        await ProjectAssignment.updateMany(
+            { projectId: id },
+            { status: "archived" }
+        );
+
+        return res.json({
+            success: true,
+            message: "Project archived successfully"
+        });
+
     } catch (err) {
-        return res.status(err.message === "Unauthorized" ? 403 : 500).json({
+        console.error(err);
+        return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Server error"
         });
     }
 };
@@ -275,13 +305,28 @@ export const getAllProjects = async (req, res) => {
         if (status) filter.status = status;
         if (communityId) filter.communityId = communityId;
 
+        // Scope by role
+        if (req.user.role === "mentor") {
+            filter.mentorId = req.user._id;
+        }
+
+        if (req.user.role === "student") {
+            const enrollments = await Enrollment.find({
+                userId: req.user._id,
+                status: "active"
+            }).select("communityId");
+
+            const communityIds = enrollments.map(e => e.communityId);
+            filter.communityId = { $in: communityIds };
+        }
+
         const pageNumber = Number(page);
         const limitNumber = Number(limit);
         const skip = (pageNumber - 1) * limitNumber;
 
         const [projects, total] = await Promise.all([
             Project.find(filter)
-                .populate("mentorId", "name email role")
+                .populate("mentorId", "name email")
                 .populate("communityId", "name")
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -298,9 +343,11 @@ export const getAllProjects = async (req, res) => {
         });
 
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
             success: false,
-            message: "Internal server error"
+            message: "Server error"
         });
     }
 };
+

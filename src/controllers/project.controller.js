@@ -4,9 +4,11 @@ import { Project } from "../models/project.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { ProjectAssignment } from "../models/projectAssignment.model.js";
+import { Community } from "../models/community.modrl.js";
 
 export const createProject = async (req, res) => {
     try {
+        // 1️⃣ Only mentor can create
         if (req.user.role !== "mentor") {
             return res.status(403).json({
                 success: false,
@@ -14,8 +16,10 @@ export const createProject = async (req, res) => {
             });
         }
 
-        const { title, description, dueDate, communityId, batchId } = req.body;
+        const { communityId } = req.params;
+        const { title, description, dueDate } = req.body;
 
+        // 2️⃣ Basic validation
         if (!title || !description || !dueDate || !communityId) {
             return res.status(400).json({
                 success: false,
@@ -23,8 +27,42 @@ export const createProject = async (req, res) => {
             });
         }
 
+        // 3️⃣ Validate due date (must be future)
+        const parsedDueDate = new Date(dueDate);
+        if (isNaN(parsedDueDate.getTime()) || parsedDueDate <= new Date()) {
+            return res.status(400).json({
+                success: false,
+                message: "Due date must be a valid future date"
+            });
+        }
+
+        // 4️⃣ Check community exists
+        const community = await Community.findById(communityId);
+        if (!community) {
+            return res.status(404).json({
+                success: false,
+                message: "Community not found"
+            });
+        }
+
+        // 5️⃣ (Optional but recommended) Check mentor belongs to community
+        const mentorEnrollment = await Enrollment.findOne({
+            userId: req.user._id,
+            communityId,
+            role: "mentor",
+            status: "active"
+        });
+
+        if (!mentorEnrollment) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized for this community"
+            });
+        }
+
         let bannerImage;
 
+        // 6️⃣ Upload banner if exists
         if (req.file) {
             const upload = await uploadToCloudinary(
                 req.file.buffer,
@@ -33,18 +71,17 @@ export const createProject = async (req, res) => {
             bannerImage = upload.secure_url;
         }
 
-        // 1️⃣ Create Project
+        // 7️⃣ Create project
         const project = await Project.create({
             title,
             description,
             bannerImage,
-            dueDate,
+            dueDate: parsedDueDate,
             mentorId: req.user._id,
-            communityId,
-            batchId: batchId || null
+            communityId
         });
 
-        // 2️⃣ Fetch all active PRO students of this community
+        // 8️⃣ Get active PRO students
         const proStudents = await Enrollment.find({
             communityId,
             role: "student",
@@ -60,14 +97,14 @@ export const createProject = async (req, res) => {
             });
         }
 
-        // 3️⃣ Prepare assignments
+        // 9️⃣ Prepare assignments
         const assignments = proStudents.map(student => ({
             userId: student.userId,
             projectId: project._id,
             status: "assigned"
         }));
 
-        // 4️⃣ Insert assignments safely (ignore duplicates)
+        // 🔟 Insert assignments safely (assumes unique index on userId + projectId)
         await ProjectAssignment.insertMany(assignments, {
             ordered: false
         });
@@ -83,11 +120,10 @@ export const createProject = async (req, res) => {
 
         return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Internal server error"
         });
     }
 };
-
 
 export const updateProject = async (req, res) => {
     try {
@@ -96,7 +132,10 @@ export const updateProject = async (req, res) => {
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ success: false, message: "Invalid ID" });
+            return res.status(400).json({
+                success: false,
+                message: "Invalid ID"
+            });
         }
 
         const filter = { _id: id, isDeleted: false };
@@ -114,6 +153,15 @@ export const updateProject = async (req, res) => {
             });
         }
 
+        // ✅ Allowed fields only
+        const allowedFields = ["title", "description", "dueDate", "status"];
+
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                project[field] = req.body[field];
+            }
+        });
+
         if (req.file) {
             const resourceType = getResourceType(req.file.mimetype);
             const upload = await uploadToCloudinary(
@@ -124,10 +172,13 @@ export const updateProject = async (req, res) => {
             project.bannerImage = upload.secure_url;
         }
 
-        Object.assign(project, req.body);
         await project.save();
 
-        return res.json({ success: true, data: project });
+        return res.json({
+            success: true,
+            data: project
+        });
+
     } catch (err) {
         return res.status(err.message === "Unauthorized" ? 403 : 500).json({
             success: false,
@@ -181,55 +232,75 @@ export const getProjectById = async (req, res) => {
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ success: false, message: "Invalid ID" });
+            return res.status(400).json({
+                success: false,
+                message: "Invalid ID"
+            });
         }
 
         const project = await Project.findOne({
             _id: id,
             isDeleted: false
-        }).populate("mentorId communityId batchId");
+        })
+            .populate("mentorId", "name email role")
+            .populate("communityId", "name");
 
         if (!project) {
-            return res.status(404).json({ success: false, message: "Project not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Project not found"
+            });
         }
 
-        return res.json({ success: true, data: project });
+        return res.json({
+            success: true,
+            data: project
+        });
+
     } catch (err) {
-        return res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 };
 
 
 export const getAllProjects = async (req, res) => {
     try {
-        const { status, communityId, batchId, page = 1, limit = 10 } = req.query;
+        const { status, communityId, page = 1, limit = 10 } = req.query;
 
         const filter = { isDeleted: false };
+
         if (status) filter.status = status;
         if (communityId) filter.communityId = communityId;
-        if (batchId) filter.batchId = batchId;
 
-        const skip = (page - 1) * limit;
+        const pageNumber = Number(page);
+        const limitNumber = Number(limit);
+        const skip = (pageNumber - 1) * limitNumber;
 
         const [projects, total] = await Promise.all([
             Project.find(filter)
                 .populate("mentorId", "name email role")
                 .populate("communityId", "name")
-                .populate("batchId", "name")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(Number(limit)),
+                .limit(limitNumber),
             Project.countDocuments(filter)
         ]);
 
         return res.json({
             success: true,
             total,
-            page: Number(page),
-            pages: Math.ceil(total / limit),
+            page: pageNumber,
+            pages: Math.ceil(total / limitNumber),
             data: projects
         });
+
     } catch (err) {
-        return res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 };

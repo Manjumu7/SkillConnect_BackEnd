@@ -36,13 +36,6 @@ const projectSchema = new mongoose.Schema({
         index: true
     },
 
-    batchId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Batch",
-        default: null,
-        index: true
-    },
-
     status: {
         type: String,
         enum: ["open", "closed", "archived"],

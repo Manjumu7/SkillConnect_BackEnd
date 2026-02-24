@@ -11,7 +11,7 @@ router.get("/", verifyToken, getAllProjects);
 router.get("/:id", verifyToken, getProjectById);
 
 router.post(
-    "/",
+    "/:communityId",
     verifyToken,
     authorizeRoles("mentor"),
     upload.single("banner"),

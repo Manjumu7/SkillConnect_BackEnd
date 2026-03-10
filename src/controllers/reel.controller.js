@@ -2,6 +2,15 @@ import mongoose from "mongoose";
 import { Reel } from "../models/reels.model.js";
 import cloudinary from "../utils/cloudinary.js";
 
+// ─── Auth helper: admin OR resource owner ───────────────────────────
+const canManageReel = (user, reel) => {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  // creator can be ObjectId or populated doc
+  const creatorId = reel.creator?._id?.toString() || reel.creator?.toString();
+  return creatorId === user._id.toString();
+};
+
 // Upload a new reel video
 const uploadReel = async (req, res) => {
   try {
@@ -45,7 +54,7 @@ const uploadReel = async (req, res) => {
 
     return res.status(200).json({ message: "Reel uploaded successfully", reel });
   } catch (error) {
-    console.error("DETAILED UPLOAD ERROR:", error); // Check your terminal for this!
+    console.error("DETAILED UPLOAD ERROR:", error);
     return res.status(500).json({
       message: error.message || "Failed to upload reel",
     });
@@ -53,13 +62,25 @@ const uploadReel = async (req, res) => {
 };
 
 
-
-
-// Get all reels (no Redis cache; direct DB query)
+// Get all reels — normal users see only active; admin/mentor can include deleted
 const getAllReels = async (req, res) => {
   try {
-    const allReels = await Reel.find()
+    const { includeDeleted } = req.query;
+
+    // Build filter
+    const filter = {};
+
+    // Only admin/mentor can see deleted reels (when explicitly requesting)
+    const userRole = req.user?.role;
+    if (includeDeleted === "true" && (userRole === "admin" || userRole === "mentor")) {
+      // No isDeleted filter — return all
+    } else {
+      filter.isDeleted = { $ne: true };
+    }
+
+    const allReels = await Reel.find(filter)
       .populate("creator", "username profileImage")
+      .populate("deletedBy", "name username")
       .sort({ createdAt: -1 });
 
     if (allReels.length === 0) {
@@ -79,7 +100,7 @@ const getAllReels = async (req, res) => {
   }
 };
 
-// Delete a reel (and its Cloudinary asset)
+// Soft delete a reel (admin or creator)
 const deleteReel = async (req, res) => {
   try {
     const { id } = req.params;
@@ -87,20 +108,59 @@ const deleteReel = async (req, res) => {
 
     if (!reel) return res.status(404).json({ message: "Reel not found" });
 
-    const publicId = reel.videoUrl
-      .split("/")
-      .slice(-2)
-      .join("/")
-      .split(".")[0];
+    if (!canManageReel(req.user, reel)) {
+      return res.status(403).json({ message: "Access denied. Only admin or resource owner can delete." });
+    }
 
-    await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
+    reel.isDeleted = true;
+    reel.deletedAt = new Date();
+    reel.deletedBy = req.user._id;
+    await reel.save();
 
-    await Reel.findByIdAndDelete(id);
-
-    res.status(200).json({ message: "Reel deleted successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Reel soft deleted successfully",
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to delete reel" });
+  }
+};
+
+// Toggle delete / restore (admin or creator)
+const toggleDeleteReel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reel = await Reel.findById(id);
+
+    if (!reel) return res.status(404).json({ message: "Reel not found" });
+
+    if (!canManageReel(req.user, reel)) {
+      return res.status(403).json({ message: "Access denied. Only admin or resource owner can toggle delete." });
+    }
+
+    if (reel.isDeleted) {
+      // Restore
+      reel.isDeleted = false;
+      reel.deletedAt = null;
+      reel.deletedBy = null;
+    } else {
+      // Soft delete
+      reel.isDeleted = true;
+      reel.deletedAt = new Date();
+      reel.deletedBy = req.user._id;
+    }
+
+    await reel.save();
+
+    return res.status(200).json({
+      success: true,
+      message: reel.isDeleted ? "Reel soft deleted successfully" : "Reel restored successfully",
+      isDeleted: reel.isDeleted,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to toggle reel delete status" });
   }
 };
 
@@ -116,6 +176,12 @@ const getReelById = async (req, res) => {
       return res
         .status(404)
         .json({ message: "Invalid id or reel not available" });
+    }
+
+    // Hide soft-deleted reels from non-admin/mentor
+    const userRole = req.user?.role;
+    if (reel.isDeleted && userRole !== "admin" && userRole !== "mentor") {
+      return res.status(404).json({ message: "Reel not found" });
     }
 
     return res
@@ -165,7 +231,7 @@ const getReelsByUser = async (req, res) => {
       return res.status(400).json({ message: "User id is required" });
     }
 
-    const reels = await Reel.find({ creator: userId })
+    const reels = await Reel.find({ creator: userId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .populate("creator", "username profileImage");
 
@@ -184,6 +250,9 @@ const getReelsByUser = async (req, res) => {
 const getTrendingReels = async (req, res) => {
   try {
     const reels = await Reel.aggregate([
+      {
+        $match: { isDeleted: { $ne: true } },
+      },
       {
         $addFields: {
           likeCount: { $size: "$likes" },
@@ -234,6 +303,7 @@ const getTotalViewsOfCreator = async (req, res) => {
       {
         $match: {
           creator: new mongoose.Types.ObjectId(creatorId),
+          isDeleted: { $ne: true },
         },
       },
       {
@@ -293,6 +363,7 @@ const likeUnlikeReel = async (req, res) => {
 export {
   uploadReel,
   deleteReel,
+  toggleDeleteReel,
   getAllReels,
   getReelById,
   updateReel,
@@ -302,4 +373,3 @@ export {
   getTotalViewsOfCreator,
   likeUnlikeReel,
 };
-

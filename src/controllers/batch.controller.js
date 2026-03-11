@@ -79,9 +79,13 @@ export const createBatch = async (req, res) => {
             mentorId: finalMentorId
         });
 
+        const populatedBatch = await Batch.findById(batch._id)
+            .populate("communityId", "name bannerImage")
+            .populate("mentorId", "name email profileImage");
+
         return res.status(201).json({
             success: true,
-            data: batch
+            batch: populatedBatch ?? batch
         });
 
     } catch (err) {
@@ -146,7 +150,9 @@ export const updateBatch = async (req, res) => {
         const updated = await Batch.findByIdAndUpdate(batchId, updateData, {
             new: true,
             runValidators: true
-        });
+        })
+            .populate("communityId", "name bannerImage")
+            .populate("mentorId", "name email profileImage");
 
         res.json({ success: true, batch: updated });
 

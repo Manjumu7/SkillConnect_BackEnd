@@ -2,6 +2,107 @@ import { Community } from "../models/community.modrl.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { User } from "../models/user.model.js";
 
+export const getAllMentorEnrollments = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        const enrollments = await Enrollment.find({ role: "mentor" })
+            .populate("userId", "name email profileImage role")
+            .populate("communityId", "name bannerImage visibility isDeleted")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            count: enrollments.length,
+            enrollments
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const updateMentorEnrollment = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        const { enrollmentId } = req.params;
+        const { userId, communityId, status } = req.body;
+
+        const enrollment = await Enrollment.findById(enrollmentId);
+        if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
+        if (enrollment.role !== "mentor") return res.status(400).json({ message: "Only mentor enrollments can be updated here" });
+
+        const nextUserId = userId ?? enrollment.userId;
+        const nextCommunityId = communityId ?? enrollment.communityId;
+
+        if (!nextUserId || !nextCommunityId) {
+            return res.status(400).json({ message: "userId and communityId are required" });
+        }
+
+        const user = await User.findById(nextUserId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        if (user.role !== "mentor") return res.status(400).json({ message: "User is not a mentor" });
+
+        const community = await Community.findOne({ _id: nextCommunityId, isDeleted: false });
+        if (!community) return res.status(404).json({ message: "Community not found" });
+
+        // Enforce one mentor per community (exclude current enrollment)
+        const existingMentor = await Enrollment.findOne({
+            _id: { $ne: enrollmentId },
+            communityId: nextCommunityId,
+            role: "mentor"
+        });
+        if (existingMentor) {
+            return res.status(409).json({ message: "This community already has an assigned mentor" });
+        }
+
+        enrollment.userId = nextUserId;
+        enrollment.communityId = nextCommunityId;
+        if (status) enrollment.status = status;
+
+        await enrollment.save();
+
+        const populated = await Enrollment.findById(enrollment._id)
+            .populate("userId", "name email profileImage role")
+            .populate("communityId", "name bannerImage visibility isDeleted");
+
+        return res.status(200).json({ success: true, enrollment: populated ?? enrollment });
+    } catch (err) {
+        // Handle unique index collision gracefully
+        if (err?.code === 11000) {
+            return res.status(409).json({ message: "Mentor is already assigned to this community" });
+        }
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const removeMentorEnrollment = async (req, res) => {
+    try {
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        const { enrollmentId } = req.params;
+        const enrollment = await Enrollment.findById(enrollmentId);
+
+        if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
+        if (enrollment.role !== "mentor") return res.status(400).json({ message: "Only mentor enrollments can be removed here" });
+
+        await Enrollment.deleteOne({ _id: enrollmentId });
+
+        // Keep membersCount consistent with existing behavior
+        await Community.findByIdAndUpdate(enrollment.communityId, { $inc: { membersCount: -1 } });
+
+        return res.status(200).json({ success: true, message: "Mentor removed from community" });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
 export const enrollMentor = async (req, res) => {
     try {
         if (req.user.role !== "admin")

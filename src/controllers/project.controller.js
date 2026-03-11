@@ -81,7 +81,7 @@ export const createProject = async (req, res) => {
             communityId
         });
 
-        // 8️⃣ Get active PRO students
+        // 8️⃣ Get active PRO students (only Pro students should receive projects)
         const proStudents = await Enrollment.find({
             communityId,
             role: "student",

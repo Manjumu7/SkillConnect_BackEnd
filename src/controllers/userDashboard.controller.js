@@ -95,34 +95,53 @@ export const getMyBatches = async (req, res) => {
 export const getMyProjects = async (req, res) => {
     try {
         if (req.user.role !== "student") {
-            return res.status(403).json({
-                success: false,
-                message: "Access denied"
-            });
+            return res.status(403).json({ success: false, message: "Access denied" });
         }
 
         const userId = req.user._id;
 
-        const assignments = await ProjectAssignment.find({
-            userId
+        const proEnrollments = await Enrollment.find({
+            userId,
+            role: "student",
+            plan: "pro",
+            status: "active"
+        }).select("communityId");
+
+        console.log("proEnrollments:", proEnrollments);
+
+        if (!proEnrollments.length) {
+            return res.status(200).json({ success: true, count: 0, projects: [] });
+        }
+
+        const communityIds = proEnrollments.map(e => e.communityId);
+
+        console.log("communityIds:", communityIds);
+
+        const projects = await Project.find({
+            communityId: { $in: communityIds },
+            isDeleted: false
         })
-            .populate({
-                path: "projectId",
-                match: { isDeleted: false },
-                populate: [
-                    { path: "mentorId", select: "name profileImage" },
-                    { path: "communityId", select: "name bannerImage" }
-                ]
-            })
+            .populate("mentorId", "name profileImage")
+            .populate("communityId", "name bannerImage")
             .sort({ createdAt: -1 });
 
-        const validAssignments = assignments.filter(a => a.projectId);
+        console.log("projects found:", projects.length);
+
+        const projectIds = projects.map(p => p._id);
+        const assignments = await ProjectAssignment.find({
+            userId,
+            projectId: { $in: projectIds }
+        });
+
+        const assignmentMap = {};
+        assignments.forEach(a => {
+            assignmentMap[a.projectId.toString()] = a;
+        });
 
         const now = new Date();
 
-        const projects = validAssignments.map(a => {
-            const project = a.projectId;
-
+        const result = projects.map(project => {
+            const assignment = assignmentMap[project._id.toString()];
             const deadlinePassed = new Date(project.dueDate) < now;
 
             return {
@@ -133,26 +152,20 @@ export const getMyProjects = async (req, res) => {
                 dueDate: project.dueDate,
                 community: project.communityId,
                 mentor: project.mentorId,
-                assignmentStatus: a.status,
-                submissionDate: a.submittedAt,
+                assignmentStatus: assignment?.status || "assigned",
+                submissionDate: assignment?.submittedAt || null,
                 projectStatus: deadlinePassed ? "closed" : "open"
             };
         });
 
-        return res.status(200).json({
-            success: true,
-            count: projects.length,
-            projects
-        });
+        return res.status(200).json({ success: true, count: result.length, projects: result });
 
     } catch (err) {
         console.error(err);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
+
 
 export const submitProject = async (req, res) => {
     try {
@@ -273,6 +286,43 @@ export const submitProject = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Internal server error"
+        });
+    }
+};
+
+export const upgradeEnrollment = async (req, res) => {
+    try {
+        roleGuard(req.user, ["student"]);
+
+        const { communityId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(communityId)) {
+            return res.status(400).json({ success: false, message: "Invalid community ID" });
+        }
+
+        const enrollment = await Enrollment.findOne({
+            userId: req.user._id,
+            communityId,
+            status: "active"
+        });
+
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: "Enrollment not found" });
+        }
+
+        if (enrollment.plan === "pro") {
+            return res.status(409).json({ success: false, message: "Already a Pro member" });
+        }
+
+        enrollment.plan = "pro";
+        await enrollment.save();
+
+        return res.status(200).json({ success: true, message: "Upgraded to Pro successfully" });
+
+    } catch (err) {
+        return res.status(err.message === "Unauthorized" ? 403 : 500).json({
+            success: false,
+            message: err.message
         });
     }
 };

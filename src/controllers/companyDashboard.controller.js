@@ -11,10 +11,15 @@ export const getDashboardStats = async (req, res) => {
         const { communityId } = req.query;
 
         // Build enrollment filter
-        const enrollFilter = { role: "student", status: "active" };
-        if (communityId && mongoose.Types.ObjectId.isValid(communityId)) {
-            enrollFilter.communityId = new mongoose.Types.ObjectId(communityId);
+        if (!communityId || !mongoose.Types.ObjectId.isValid(communityId)) {
+            return res.status(400).json({ success: false, message: "Community ID is required" });
         }
+
+        const enrollFilter = { 
+            role: "student", 
+            status: "active",
+            communityId: new mongoose.Types.ObjectId(communityId)
+        };
 
         // Get student enrollments
         const enrollments = await Enrollment.find(enrollFilter).select("userId").lean();
@@ -140,6 +145,9 @@ export const getLeaderboard = async (req, res) => {
                 score: scores.totalScore,
             };
         });
+
+        // Filter: only include students with score > 0
+        leaderboard = leaderboard.filter((entry) => entry.score > 0);
 
         // Sort by score
         leaderboard.sort((a, b) => sortDir * (a.score - b.score));

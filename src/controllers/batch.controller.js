@@ -3,6 +3,8 @@ import { Batch } from "../models/batch.model.js";
 import { Community } from "../models/community.modrl.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { User } from "../models/user.model.js";
+import { Project } from "../models/project.model.js";
+import { ProjectAssignment } from "../models/projectAssignment.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 
@@ -254,9 +256,33 @@ export const upgradeToPro = async (req, res) => {
 
         await enrollment.save();
 
+        // ✅ Retroactive project assignment: assign all existing open projects
+        const existingProjects = await Project.find({
+            communityId,
+            isDeleted: false,
+            status: "open"
+        }).select("_id");
+
+        if (existingProjects.length > 0) {
+            const assignments = existingProjects.map(project => ({
+                userId,
+                projectId: project._id,
+                status: "assigned"
+            }));
+
+            // Use ordered: false to skip duplicates silently
+            await ProjectAssignment.insertMany(assignments, { ordered: false }).catch(err => {
+                // Ignore duplicate key errors (E11000)
+                if (err.code !== 11000 && !err.writeErrors?.every(e => e.err?.code === 11000)) {
+                    throw err;
+                }
+            });
+        }
+
         return res.status(200).json({
             success: true,
-            message: "Upgraded to pro successfully"
+            message: "Upgraded to pro successfully",
+            projectsAssigned: existingProjects.length
         });
 
     } catch (err) {

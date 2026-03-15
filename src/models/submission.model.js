@@ -49,6 +49,23 @@ const submissionSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
         index: true
+    },
+
+    title: {
+        type: String,
+        required: true
+    },
+
+    githubLink: {
+        type: String,
+    },
+
+    liveDemoLink: {
+        type: String
+    },
+
+    description: {
+        type: String
     }
 
 }, { timestamps: true });

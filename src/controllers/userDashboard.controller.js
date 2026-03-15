@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Batch } from "../models/batch.model.js";
 import { Community } from "../models/community.modrl.js";
 import { Enrollment } from "../models/enrollment.model.js";
@@ -292,9 +293,9 @@ export const submitProject = async (req, res) => {
 
 export const upgradeEnrollment = async (req, res) => {
     try {
-        roleGuard(req.user, ["student"]);
+        if (req.user.role !== "student") return res.status(400).json({ message: "Students only" })
 
-        const { communityId } = req.params;
+        const { communityId } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(communityId)) {
             return res.status(400).json({ success: false, message: "Invalid community ID" });

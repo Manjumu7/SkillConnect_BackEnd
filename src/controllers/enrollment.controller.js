@@ -258,7 +258,7 @@ export const enrollInCommunity = async (req, res) => {
 export const getMyEnrollments = async (req, res) => {
     const enrollments = await Enrollment.find({
         userId: req.user._id
-    }).select("communityId");
+    }).select("communityId plan role status");
 
     res.json({ enrollments });
 };

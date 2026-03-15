@@ -2,6 +2,7 @@ import express from "express";
 import { enrollInCommunity, enrollMentor, getAllMentorEnrollments, getCommunityMembers, getMyEnrollments, getUserCommunities, removeMentorEnrollment, removeUserFromCommunity, updateMentorEnrollment } from "../controllers/enrollment.controller.js";
 import verifyToken from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/authRole.middleware.js";
+import { upgradeEnrollment } from "../controllers/userDashboard.controller.js";
 
 
 const router = express.Router();
@@ -20,6 +21,8 @@ router.get("/user/:userId/communities", verifyToken, authorizeRoles("admin"), ge
 router.delete("/community/:communityId/user/:userId", verifyToken, authorizeRoles("admin"), removeUserFromCommunity);
 
 router.post("/community/:communityId/student", verifyToken, enrollInCommunity);
+
+router.patch("/upgrade", verifyToken, authorizeRoles("student"), upgradeEnrollment)
 
 router.get("/my", verifyToken, getMyEnrollments)
 

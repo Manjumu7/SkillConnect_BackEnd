@@ -10,6 +10,6 @@ router.get("/my", verifyToken, authorizeRoles("student"), getMyCommunities)
 
 router.get("/student-batches", verifyToken, authorizeRoles("student"), getMyBatches)
 router.get("/my-projects", verifyToken, authorizeRoles("student"), getMyProjects)
-router.patch("/upgrade/:communityId", verifyToken, authorizeRoles("student"), upgradeEnrollment)
+
 router.post("/project-submisson/:projectId", verifyToken, authorizeRoles("student"), upload.single("file"), submitProject)
 export default router;

@@ -1,13 +1,14 @@
-import dotenv from 'dotenv';
-import sgMail from '@sendgrid/mail';
-
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 dotenv.config();
 
-if (!process.env.SENDGRID_API_KEY) {
-    console.error('⚠️  Missing SENDGRID_API_KEY environment variable');
-}
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+    },
+});
 
 const getOtpTemplate = (otp) => {
     return `
@@ -28,7 +29,7 @@ const getOtpTemplate = (otp) => {
         <div style="padding: 40px 30px;">
           <h2 style="color: #111827; margin: 0 0 16px 0; font-size: 22px;">Verify your account</h2>
           <p style="font-size: 16px; color: #4b5563; line-height: 24px; margin-bottom: 30px;">
-            Welcome to SkillConnect! To get started with your courses and connect with experts, please use the following One-Time Password (OTP) to verify your email address.
+            Welcome to SkillConnect! Please use the following OTP to verify your email address.
           </p>
 
           <div style="background-color: #f3f4f6; padding: 24px; border-radius: 12px; text-align: center; border: 1px dashed #d1d5db;">
@@ -43,7 +44,7 @@ const getOtpTemplate = (otp) => {
           <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           
           <p style="color: #9ca3af; font-size: 13px; line-height: 20px;">
-            If you didn't create a SkillConnect account, you can safely ignore this email or contact our support team if you have concerns.
+            If you didn't create a SkillConnect account, you can safely ignore this email.
           </p>
         </div>
 
@@ -58,38 +59,22 @@ const getOtpTemplate = (otp) => {
 
 const sendOtpEmail = async (to, otp) => {
     try {
-        console.log(`📧 Sending OTP to ${to} via SendGrid`);
+        console.log(`📧 Sending OTP to ${to} via Gmail`);
 
-        const msg = {
-            to: to,
-            from: {
-                email: 'finalyearproject2023.01@gmail.com',
-                name: 'ImpactHub'
-            },
-            subject: 'Your ImpactHub Verification Code',
-            text: `Your ImpactHub OTP is: ${otp}. It is valid for 5 minutes.`,
+        await transporter.sendMail({
+            from: `"SkillConnect" <${process.env.GMAIL_USER}>`,
+            to,
+            subject: "Your SkillConnect Verification Code",
+            text: `Your SkillConnect OTP is: ${otp}. Valid for 5 minutes.`,
             html: getOtpTemplate(otp),
-        };
+        });
 
-        const response = await sgMail.send(msg);
+        console.log("✅ OTP email sent successfully");
+        return { success: true };
 
-        console.log('✅ OTP email sent successfully via SendGrid');
-        return { success: true, messageId: response[0].headers['x-message-id'] };
     } catch (error) {
-        console.error('❌ Failed to send OTP email:', error.message);
-
-        if (error.response) {
-            console.error('SendGrid error details:', JSON.stringify(error.response.body, null, 2));
-        }
-
+        console.error("❌ Failed to send OTP email:", error.message);
         throw new Error(`Email sending failed: ${error.message}`);
-    }
-};
-
-const transporter = {
-    verify: () => {
-        console.log('✅ SendGrid configured and ready');
-        return Promise.resolve(true);
     }
 };
 

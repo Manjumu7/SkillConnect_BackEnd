@@ -18,7 +18,7 @@ export const generateAccessToken = (user) => {
 const registerUser = async (req, res) => {
     try {
         const { name, email, password, phone, role } = req.body;
-
+console.log("REQ BODY:", req.body); // see exactly what's coming in
         if (!name || !email || !password) {
             return res.status(400).json({
                 message: "All required fields missing"
@@ -43,6 +43,7 @@ const registerUser = async (req, res) => {
             otp,
             name: name.trim(),
             password: hashPassword,
+            phone: phone ? phone.trim() : "",
             expiresAt: new Date(Date.now() + 5 * 60 * 1000)
         })
 
@@ -54,10 +55,12 @@ const registerUser = async (req, res) => {
         })
 
     } catch (error) {
-        console.error(error.message);
-        return res.status(500).json({
-            message: "Failed to create user"
-        });
+        console.error("REGISTER ERROR:", error); // full error object, not just message
+    return res.status(500).json({ 
+        message: "Failed to create user",
+        error: error.message,  // ← send error to frontend temporarily
+        stack: error.stack     // ← and stack trace
+    });
     }
 };
 
@@ -83,7 +86,7 @@ const verifyOTP = async (req, res) => {
             email: otpRecord.email,
             password: otpRecord.password,
             phone: otpRecord.phone,
-            role: "user",
+            role: "student",
         });
 
         await OTP.deleteMany({ email });

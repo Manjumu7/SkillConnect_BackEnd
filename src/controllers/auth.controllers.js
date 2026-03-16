@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js"
 import bcrypt from "bcryptjs"
+import { OTP } from "../models/otp.model.js";
+import { sendOtpEmail } from "../Services/email.service.js";
 
 export const generateAccessToken = (user) => {
     return jwt.sign(
@@ -30,20 +32,26 @@ const registerUser = async (req, res) => {
             });
         }
 
+        const otp = Math.floor(100000 + Math.random() * 900000).toString()
+
         const hashPassword = await bcrypt.hash(password, 10);
 
-        const user = await User.create({
-            name,
-            email,
-            password: hashPassword,
-            phone,
-            role: "student"
-        });
+        await OTP.deleteMany({ email })
 
-        return res.status(201).json({
-            message: "User created successfully",
-            user
-        });
+        await OTP.create({
+            email,
+            otp,
+            fullName: fullName.trim(),
+            password: hashPassword,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+        })
+
+        await sendOtpEmail(email, otp)
+
+
+        return res.status(200).json({
+            message: "OTP sent to your email",
+        })
 
     } catch (error) {
         console.error(error.message);
@@ -52,6 +60,42 @@ const registerUser = async (req, res) => {
         });
     }
 };
+
+const verifyOTP = async (req, res) => {
+    try {
+        let { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        email = email.trim().toLowerCase();
+
+        const otpRecord = await OTP.findOne({ email });
+
+        if (!otpRecord) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+
+        if (otpRecord.otp !== otp) return res.status(400).json({ message: "Incorrect OTP" })
+
+        const newUser = await User.create({
+            name: otpRecord.name,
+            email: otpRecord.email,
+            password: otpRecord.password,
+            role: "user",
+        });
+
+        await OTP.deleteMany({ email });
+
+        return res.status(201).json({
+            message: "Account verified and created successfully",
+            userId: newUser._id,
+        });
+    } catch (error) {
+        console.error("OTP verification failed:", error);
+        return res.status(500).json({ message: "Verification failed" });
+    }
+}
 
 const loginUser = async (req, res) => {
     try {

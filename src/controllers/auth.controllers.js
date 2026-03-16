@@ -41,7 +41,7 @@ const registerUser = async (req, res) => {
         await OTP.create({
             email,
             otp,
-            fullName: fullName.trim(),
+            name: name.trim(),
             password: hashPassword,
             expiresAt: new Date(Date.now() + 5 * 60 * 1000)
         })
@@ -82,6 +82,7 @@ const verifyOTP = async (req, res) => {
             name: otpRecord.name,
             email: otpRecord.email,
             password: otpRecord.password,
+            phone: otpRecord.phone,
             role: "user",
         });
 

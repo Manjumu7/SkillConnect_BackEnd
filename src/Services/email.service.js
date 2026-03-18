@@ -1,17 +1,8 @@
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-// ── Gmail SMTP transporter (uses App Password from .env) ────────
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-    // Force IPv4 to avoid ENETUNREACH on IPv6 networks
-    family: 4,
-});
+// ── Resend HTTP API (works on Render, no SMTP ports needed) ─────
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 const getOtpTemplate = (otp) => {
     return `
@@ -54,23 +45,36 @@ const getOtpTemplate = (otp) => {
 };
 
 /**
- * Send OTP email via Gmail SMTP with 1 automatic retry on failure.
+ * Send OTP email via Resend HTTP API with 1 automatic retry on failure.
  */
 const sendOtpEmail = async (to, otp, _retryCount = 0) => {
     const MAX_RETRIES = 1;
     const RETRY_DELAY_MS = 2000;
 
     try {
-        console.log(`📧 Sending OTP to ${to} via Gmail SMTP`);
+        console.log(`📧 Sending OTP to ${to} via Resend API`);
 
-        await transporter.sendMail({
-            from: `"SkillConnect" <${process.env.EMAIL_USER}>`,
-            to,
-            subject: "Your SkillConnect Verification Code",
-            html: getOtpTemplate(otp),
+        const response = await fetch(RESEND_API_URL, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                from: `SkillConnect <onboarding@resend.dev>`,
+                to: [to],
+                subject: "Your SkillConnect Verification Code",
+                html: getOtpTemplate(otp),
+            }),
         });
 
-        console.log("✅ OTP email sent successfully");
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || `Resend API error: ${response.status}`);
+        }
+
+        console.log("✅ OTP email sent successfully via Resend");
         return { success: true };
 
     } catch (error) {

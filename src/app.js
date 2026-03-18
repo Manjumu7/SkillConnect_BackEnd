@@ -18,6 +18,7 @@ import userDashboardRouter from "./routes/userDashboard.route.js"
 import adminDashboardRouter from "./routes/adminDashboard.route.js"
 import mentorDashboardRouter from "./routes/mentorDashboard.route.js"
 import companyDashboardRouter from "./routes/companyDashboard.route.js"
+import errorHandler from "./middlewares/errorHandler.middleware.js";
 
 const app = express();
 dotenv.config();
@@ -54,4 +55,8 @@ app.use("/admindashboards", adminDashboardRouter)
 app.use("/mentordashboards", mentorDashboardRouter)
 app.use("/companydashboard", companyDashboardRouter)
 
+// Central error handler (must be after all routes)
+app.use(errorHandler);
+
 export default app;
+

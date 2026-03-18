@@ -1,11 +1,12 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 
 const otpSchema = new mongoose.Schema({
     email: { type: String, required: true },
     otp: { type: String, required: true },
     name: { type: String, required: true },
     password: { type: String, required: true },
-    phone: { type: String, required: true },
+    phone: { type: String },
+    attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
 });
 

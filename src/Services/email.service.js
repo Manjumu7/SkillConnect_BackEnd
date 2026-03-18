@@ -1,8 +1,15 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ── Gmail SMTP transporter (uses App Password from .env) ────────
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
 
 const getOtpTemplate = (otp) => {
     return `
@@ -44,12 +51,18 @@ const getOtpTemplate = (otp) => {
   `;
 };
 
-const sendOtpEmail = async (to, otp) => {
-    try {
-        console.log(`📧 Sending OTP to ${to} via Resend`);
+/**
+ * Send OTP email via Gmail SMTP with 1 automatic retry on failure.
+ */
+const sendOtpEmail = async (to, otp, _retryCount = 0) => {
+    const MAX_RETRIES = 1;
+    const RETRY_DELAY_MS = 2000;
 
-        await resend.emails.send({
-            from: "SkillConnect <onboarding@resend.dev>", // ✅ works without domain verification
+    try {
+        console.log(`📧 Sending OTP to ${to} via Gmail SMTP`);
+
+        await transporter.sendMail({
+            from: `"SkillConnect" <${process.env.EMAIL_USER}>`,
             to,
             subject: "Your SkillConnect Verification Code",
             html: getOtpTemplate(otp),
@@ -59,8 +72,15 @@ const sendOtpEmail = async (to, otp) => {
         return { success: true };
 
     } catch (error) {
-        console.error("❌ Failed to send OTP email:", error.message);
-        throw new Error(`Email sending failed: ${error.message}`);
+        console.error(`❌ Email send attempt ${_retryCount + 1} failed:`, error.message);
+
+        if (_retryCount < MAX_RETRIES) {
+            console.log(`🔄 Retrying in ${RETRY_DELAY_MS / 1000}s...`);
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+            return sendOtpEmail(to, otp, _retryCount + 1);
+        }
+
+        throw new Error(`Email sending failed after ${MAX_RETRIES + 1} attempts: ${error.message}`);
     }
 };
 

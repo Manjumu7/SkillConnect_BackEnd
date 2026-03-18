@@ -9,6 +9,8 @@ const transporter = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
+    // Force IPv4 to avoid ENETUNREACH on IPv6 networks
+    family: 4,
 });
 
 const getOtpTemplate = (otp) => {

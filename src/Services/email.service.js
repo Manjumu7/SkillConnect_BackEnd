@@ -9,9 +9,8 @@ const EMAIL_PASS = process.env.EMAIL_PASS;
 
 if (!EMAIL_USER || !EMAIL_PASS) {
   console.error(
-    "❌ Missing EMAIL_USER or EMAIL_PASS environment variables. Email service will not work."
+    "⚠️ Missing EMAIL_USER or EMAIL_PASS environment variables. Email service will not work."
   );
-  process.exit(1);
 }
 
 // ── SMTP Transporter (Gmail via App Password) ───────────────────

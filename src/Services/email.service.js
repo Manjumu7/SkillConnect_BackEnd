@@ -1,44 +1,20 @@
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { createRequire } from "module";
 
 dotenv.config();
 
-// ── Validate required env vars ──────────────────────────────────
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
+const require = createRequire(import.meta.url);
+const { BrevoClient } = require("@getbrevo/brevo");
 
-if (!EMAIL_USER || !EMAIL_PASS) {
-  console.error(
-    "⚠️ Missing EMAIL_USER or EMAIL_PASS environment variables. Email service will not work."
-  );
+// ── Validate required env var ───────────────────────────────────
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+
+if (!BREVO_API_KEY) {
+  console.error("⚠️ Missing BREVO_API_KEY environment variable. Email service will not work.");
 }
 
-// ── SMTP Transporter (Gmail via App Password) ───────────────────
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
-  // Force IPv4 — prevents ENETUNREACH on Render and similar platforms
-  family: 4,
-  // Connection reliability timeouts
-  connectionTimeout: 10_000, // 10s to establish connection
-  greetingTimeout: 10_000,   // 10s for SMTP greeting
-  socketTimeout: 15_000,     // 15s for socket inactivity
-});
-
-// ── Verify SMTP connection on startup ───────────────────────────
-transporter
-  .verify()
-  .then(() => console.log("✅ SMTP Connection Verified"))
-  .catch((err) => {
-    console.error("❌ SMTP Connection Failed:", err.message);
-    // Don't crash — email may recover, and the server can still handle
-    // non-email routes. Individual send attempts will report their own errors.
-  });
+// ── Brevo API client setup ──────────────────────────────────────
+const brevo = new BrevoClient({ apiKey: BREVO_API_KEY });
 
 // ── OTP email template ──────────────────────────────────────────
 const getOtpTemplate = (otp) => `
@@ -59,22 +35,33 @@ const getOtpTemplate = (otp) => `
 
 // ── Send OTP email ──────────────────────────────────────────────
 const sendOtpEmail = async (to, otp) => {
-  const mailOptions = {
-    from: `"SkillConnect" <${EMAIL_USER}>`,
-    to,
-    subject: "Your SkillConnect Verification Code",
-    html: getOtpTemplate(otp),
-    text: `Your OTP is: ${otp}. Valid for 5 minutes.`,
-  };
-
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("📨 OTP email sent:", { to, messageId: info.messageId });
-    return { success: true, messageId: info.messageId };
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      to: [{ email: to }],
+      sender: { email: "skillconnect100@gmail.com", name: "SkillConnect" },
+      subject: "Your SkillConnect Verification Code",
+      htmlContent: getOtpTemplate(otp),
+      textContent: `Your OTP is: ${otp}. Valid for 5 minutes.`,
+    });
+
+    console.log("📨 OTP email sent:", { to, messageId: response.messageId });
+    return { success: true, messageId: response.messageId };
   } catch (error) {
     console.error("❌ Failed to send OTP email:", error.message);
     throw new Error(`Email sending failed: ${error.message}`);
   }
+};
+
+// ── Transporter-compatible object for startup check ─────────────
+const transporter = {
+  verify: () => {
+    if (!BREVO_API_KEY) {
+      console.error("⚠️ Brevo not configured — missing API key");
+      return Promise.resolve(false);
+    }
+    console.log("✅ Brevo configured and ready");
+    return Promise.resolve(true);
+  },
 };
 
 export { transporter, sendOtpEmail };

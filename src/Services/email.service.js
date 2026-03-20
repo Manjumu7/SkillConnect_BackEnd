@@ -1,93 +1,81 @@
+import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+
 dotenv.config();
 
-// ── Resend HTTP API (works on Render, no SMTP ports needed) ─────
-const RESEND_API_URL = "https://api.resend.com/emails";
+// ── Validate required env vars ──────────────────────────────────
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
 
-const getOtpTemplate = (otp) => {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f9fafb;">
-      <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
-        <div style="background-color: #2563eb; padding: 30px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 28px;">SkillConnect</h1>
-          <p style="color: #bfdbfe; margin: 5px 0 0 0; font-size: 14px;">Elevate Your Learning Journey</p>
-        </div>
-        <div style="padding: 40px 30px;">
-          <h2 style="color: #111827; margin: 0 0 16px 0;">Verify your account</h2>
-          <p style="font-size: 16px; color: #4b5563; line-height: 24px; margin-bottom: 30px;">
-            Welcome to SkillConnect! Use the OTP below to verify your email address.
-          </p>
-          <div style="background-color: #f3f4f6; padding: 24px; border-radius: 12px; text-align: center; border: 1px dashed #d1d5db;">
-            <span style="display: block; color: #6b7280; font-size: 12px; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;">Your Verification Code</span>
-            <h2 style="color: #2563eb; font-size: 36px; letter-spacing: 10px; margin: 0; font-weight: 800; font-family: monospace;">${otp}</h2>
-          </div>
-          <p style="color: #6b7280; font-size: 14px; margin: 25px 0; text-align: center;">
-            This code is valid for <b>5 minutes</b>.
-          </p>
-          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-          <p style="color: #9ca3af; font-size: 13px;">
-            If you didn't create a SkillConnect account, you can safely ignore this email.
-          </p>
-        </div>
-        <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} SkillConnect LMS. All rights reserved.</p>
-        </div>
+if (!EMAIL_USER || !EMAIL_PASS) {
+  console.error(
+    "❌ Missing EMAIL_USER or EMAIL_PASS environment variables. Email service will not work."
+  );
+  process.exit(1);
+}
+
+// ── SMTP Transporter (Gmail via App Password) ───────────────────
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
+  },
+  // Force IPv4 — prevents ENETUNREACH on Render and similar platforms
+  family: 4,
+  // Connection reliability timeouts
+  connectionTimeout: 10_000, // 10s to establish connection
+  greetingTimeout: 10_000,   // 10s for SMTP greeting
+  socketTimeout: 15_000,     // 15s for socket inactivity
+});
+
+// ── Verify SMTP connection on startup ───────────────────────────
+transporter
+  .verify()
+  .then(() => console.log("✅ SMTP Connection Verified"))
+  .catch((err) => {
+    console.error("❌ SMTP Connection Failed:", err.message);
+    // Don't crash — email may recover, and the server can still handle
+    // non-email routes. Individual send attempts will report their own errors.
+  });
+
+// ── OTP email template ──────────────────────────────────────────
+const getOtpTemplate = (otp) => `
+  <!DOCTYPE html>
+  <html>
+  <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+      <h1 style="color: #333;">SkillConnect</h1>
+      <p style="font-size: 16px; color: #666;">Verify your email to complete your registration.</p>
+      <div style="background-color: #f0f0f0; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center;">
+        <h2 style="color: #333; font-size: 32px; letter-spacing: 8px; margin: 0;">${otp}</h2>
       </div>
-    </body>
-    </html>
-  `;
+      <p style="color: #999; font-size: 14px;">This OTP is valid for 5 minutes.</p>
+    </div>
+  </body>
+  </html>
+`;
+
+// ── Send OTP email ──────────────────────────────────────────────
+const sendOtpEmail = async (to, otp) => {
+  const mailOptions = {
+    from: `"SkillConnect" <${EMAIL_USER}>`,
+    to,
+    subject: "Your SkillConnect Verification Code",
+    html: getOtpTemplate(otp),
+    text: `Your OTP is: ${otp}. Valid for 5 minutes.`,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("📨 OTP email sent:", { to, messageId: info.messageId });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("❌ Failed to send OTP email:", error.message);
+    throw new Error(`Email sending failed: ${error.message}`);
+  }
 };
 
-/**
- * Send OTP email via Resend HTTP API with 1 automatic retry on failure.
- */
-const sendOtpEmail = async (to, otp, _retryCount = 0) => {
-    const MAX_RETRIES = 1;
-    const RETRY_DELAY_MS = 2000;
-
-    try {
-        console.log(`📧 Sending OTP to ${to} via Resend API`);
-
-        const response = await fetch(RESEND_API_URL, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                from: `SkillConnect <onboarding@resend.dev>`,
-                to: [to],
-                subject: "Your SkillConnect Verification Code",
-                html: getOtpTemplate(otp),
-            }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || `Resend API error: ${response.status}`);
-        }
-
-        console.log("✅ OTP email sent successfully via Resend");
-        return { success: true };
-
-    } catch (error) {
-        console.error(`❌ Email send attempt ${_retryCount + 1} failed:`, error.message);
-
-        if (_retryCount < MAX_RETRIES) {
-            console.log(`🔄 Retrying in ${RETRY_DELAY_MS / 1000}s...`);
-            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-            return sendOtpEmail(to, otp, _retryCount + 1);
-        }
-
-        throw new Error(`Email sending failed after ${MAX_RETRIES + 1} attempts: ${error.message}`);
-    }
-};
-
-export { sendOtpEmail };
+export { transporter, sendOtpEmail };

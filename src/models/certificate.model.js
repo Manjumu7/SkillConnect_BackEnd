@@ -1,16 +1,39 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
+
 const certificateSchema = new mongoose.Schema({
-    userId:{
+    userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true
+        required: true,
+        index: true
     },
 
     communityId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Community",
-        required: true
-    }
-},{timestamps: true})
+        required: true,
+        index: true
+    },
 
-export const Certificate = mongoose.model("Certificate", certificateSchema)
+    courseName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+
+    certificateId: {
+        type: String,
+        unique: true,
+        default: () => crypto.randomUUID()
+    },
+
+    issuedAt: {
+        type: Date,
+        default: Date.now
+    }
+}, { timestamps: true });
+
+certificateSchema.index({ userId: 1, communityId: 1 }, { unique: true });
+
+export const Certificate = mongoose.model("Certificate", certificateSchema);

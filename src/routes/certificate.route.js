@@ -1,35 +1,45 @@
 import express from "express";
-import { authorizeRoles } from "../middlewares/authRole.middleware.js";
 import verifyToken from "../middlewares/auth.middleware.js";
+import { authorizeRoles } from "../middlewares/authRole.middleware.js";
+import checkEligibility from "../middlewares/eligibility.middleware.js";
 import {
-    createCertificate,
-    deleteCertificate,
-    getAllCertificates,
-    getCertificateById,
-    getUserCertificates,
-    getScoreForCommunity,
-    generateStudentCertificate,
+    getUserScore,
+    generateCertificate,
     getMyCertificates,
-    getCertificateDetail,
-    verifyCertificate
+    getCertificateById,
+    verifyCertificate,
+    createCertificate,
+    getAllCertificates,
+    getCertificateByIdAdmin,
+    deleteCertificate,
+    getUserCertificates
 } from "../controllers/certificate.controller.js";
 
 const router = express.Router();
 
-// ─── Student Routes (must be above /:id to avoid conflicts) ─────
-router.get("/score/:communityId", verifyToken, getScoreForCommunity);
-router.post("/generate", verifyToken, generateStudentCertificate);
-router.get("/my", verifyToken, getMyCertificates);
-router.get("/detail/:id", verifyToken, getCertificateDetail);
+// ─── Student Routes ────────────────────────────────────────────────────────────
 
-// ─── Public Route ───────────────────────────────────────────────
+// Get logged-in user's score
+router.get("/score", verifyToken, getUserScore);
+
+// Get logged-in user's certificates
+router.get("/my", verifyToken, getMyCertificates);
+
+// Generate a certificate (eligibility enforced here — score >= 60 checked in controller)
+router.post("/generate", verifyToken, checkEligibility, generateCertificate);
+
+// Public certificate verification (no auth needed)
 router.get("/verify/:certId", verifyCertificate);
 
-// ─── Admin Routes ───────────────────────────────────────────────
+// Get single certificate by _id (ownership checked in controller)
+router.get("/detail/:id", verifyToken, getCertificateById);
+
+// ─── Admin Routes ──────────────────────────────────────────────────────────────
+
 router.post("/", verifyToken, authorizeRoles("admin"), createCertificate);
 router.get("/", verifyToken, authorizeRoles("admin"), getAllCertificates);
-router.get("/:id", verifyToken, authorizeRoles("admin"), getCertificateById);
 router.get("/user/:userId", verifyToken, authorizeRoles("admin"), getUserCertificates);
+router.get("/:id", verifyToken, authorizeRoles("admin"), getCertificateByIdAdmin);
 router.delete("/:id", verifyToken, authorizeRoles("admin"), deleteCertificate);
 
 export default router;

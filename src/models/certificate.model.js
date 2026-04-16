@@ -1,28 +1,31 @@
 import mongoose from "mongoose";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 const certificateSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true
+        required: true,
+        index: true
     },
 
     communityId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Community",
-        required: true
+        required: true,
+        index: true
+    },
+
+    courseName: {
+        type: String,
+        required: true,
+        trim: true
     },
 
     certificateId: {
         type: String,
         unique: true,
-        default: () => uuidv4()
-    },
-
-    courseName: {
-        type: String,
-        required: true
+        default: () => crypto.randomUUID()
     },
 
     score: {

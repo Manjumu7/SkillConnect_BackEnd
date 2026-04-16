@@ -20,12 +20,18 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.3",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.2",
+<<<<<<< HEAD
     "resend": "^6.9.4",
     "uuid": "^13.0.0"
+=======
+    "qrcode.react": "^4.2.0",
+    "resend": "^6.9.4"
+>>>>>>> bd7b716 (feat: Enhance certificate functionality with user score checks and eligibility middleware)
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

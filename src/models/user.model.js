@@ -90,6 +90,12 @@ const userSchema = new mongoose.Schema({
         }
     ],
 
+    score: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+
     mentorStatus: {
         type: String,
         enum: ["none", "pending", "approved", "rejected"],

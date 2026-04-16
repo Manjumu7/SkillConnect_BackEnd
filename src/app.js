@@ -42,7 +42,7 @@ app.use("/auth", authRouter);
 app.use("/enrollments", enrollmentRouter)
 app.use("/community", communityRouter);
 app.use("/batches", batchRouter);
-app.use("/certificate", certificateRouter);
+app.use("/api/certificates", certificateRouter);
 app.use("/admin", adminRouter);
 app.use("/projects", projectRouter);
 app.use("/submission", submissionRouter);

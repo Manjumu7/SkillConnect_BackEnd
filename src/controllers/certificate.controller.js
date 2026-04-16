@@ -1,74 +1,37 @@
 import mongoose from "mongoose";
 import { Certificate } from "../models/certificate.model.js";
-import { Submission } from "../models/submission.model.js";
-import { Project } from "../models/project.model.js";
-import { Enrollment } from "../models/enrollment.model.js";
+import { User } from "../models/user.model.js";
 
-// ─── Student Endpoints ───────────────────────────────────────────────
+// ─── Student-Facing Controllers ───────────────────────────────────────────────
 
 /**
- * GET /certificate/score/:communityId
- * Returns the student's total reviewed-submission score for a community
+ * GET /api/certificates/score
+ * Returns the authenticated user's current score
  */
-export const getScoreForCommunity = async (req, res) => {
+export const getUserScore = async (req, res) => {
     try {
-        const { communityId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(communityId)) {
-            return res.status(400).json({ message: "Invalid community ID" });
+        const user = await User.findById(req.user._id).select("score name");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
         }
-
-        // Get all project IDs belonging to this community
-        const projects = await Project.find({
-            communityId,
-            isDeleted: false
-        }).select("_id");
-
-        const projectIds = projects.map(p => p._id);
-
-        if (projectIds.length === 0) {
-            return res.json({ success: true, score: 0 });
-        }
-
-        // Aggregate reviewed submissions for this student in those projects
-        const result = await Submission.aggregate([
-            {
-                $match: {
-                    studentId: new mongoose.Types.ObjectId(req.user._id),
-                    projectId: { $in: projectIds },
-                    status: "reviewed",
-                    isDeleted: false
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    totalScore: { $sum: "$grade" },
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
-
-        const score = result.length > 0 ? result[0].totalScore : 0;
-
-        res.json({ success: true, score });
-
+        res.json({ score: user.score, name: user.name });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
 /**
- * POST /certificate/generate
- * Body: { communityId, courseName }
+ * POST /api/certificates/generate
  * Generates a certificate if student scored >= 60 in community
+ * Body: { communityId, courseName }
  */
-export const generateStudentCertificate = async (req, res) => {
+export const generateCertificate = async (req, res) => {
     try {
         const { communityId, courseName } = req.body;
+        const userId = req.user._id;
 
         if (!communityId || !courseName) {
-            return res.status(400).json({ message: "communityId and courseName required" });
+            return res.status(400).json({ message: "communityId and courseName are required" });
         }
 
         if (!mongoose.Types.ObjectId.isValid(communityId)) {
@@ -77,7 +40,7 @@ export const generateStudentCertificate = async (req, res) => {
 
         // Verify student is enrolled
         const enrollment = await Enrollment.findOne({
-            userId: req.user._id,
+            userId,
             communityId,
             status: "active"
         });
@@ -86,27 +49,23 @@ export const generateStudentCertificate = async (req, res) => {
             return res.status(403).json({ message: "Not enrolled in this community" });
         }
 
-        // Check if certificate already exists
-        const existing = await Certificate.findOne({
-            userId: req.user._id,
-            communityId
-        }).populate("communityId", "name");
-
+        // Prevent duplicate certificate for same user + community
+        const existing = await Certificate.findOne({ userId, communityId });
         if (existing) {
             return res.status(409).json({
-                message: "Certificate already issued",
+                message: "Certificate already issued for this community",
                 certificate: existing
             });
         }
 
-        // Compute score
+        // Compute score from reviewed submissions
         const projects = await Project.find({ communityId, isDeleted: false }).select("_id");
         const projectIds = projects.map(p => p._id);
 
         const result = await Submission.aggregate([
             {
                 $match: {
-                    studentId: new mongoose.Types.ObjectId(req.user._id),
+                    studentId: new mongoose.Types.ObjectId(userId),
                     projectId: { $in: projectIds },
                     status: "reviewed",
                     isDeleted: false
@@ -129,9 +88,8 @@ export const generateStudentCertificate = async (req, res) => {
             });
         }
 
-        // Create certificate
         const certificate = await Certificate.create({
-            userId: req.user._id,
+            userId,
             communityId,
             courseName,
             score
@@ -141,13 +99,13 @@ export const generateStudentCertificate = async (req, res) => {
 
     } catch (err) {
         if (err.code === 11000) {
-            // Race-condition duplicate
+            // Handle race-condition duplicate
             const existing = await Certificate.findOne({
                 userId: req.user._id,
                 communityId: req.body.communityId
             });
             return res.status(409).json({
-                message: "Certificate already issued",
+                message: "Certificate already issued for this community",
                 certificate: existing
             });
         }
@@ -156,7 +114,7 @@ export const generateStudentCertificate = async (req, res) => {
 };
 
 /**
- * GET /certificate/my
+ * GET /api/certificates/my
  * Returns all certificates belonging to the logged-in student
  */
 export const getMyCertificates = async (req, res) => {
@@ -166,17 +124,16 @@ export const getMyCertificates = async (req, res) => {
             .sort({ issuedAt: -1 });
 
         res.json({ success: true, certificates });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
 /**
- * GET /certificate/detail/:id
- * Returns a single certificate by MongoDB _id (for full-page view)
+ * GET /api/certificates/detail/:id
+ * Returns a single certificate by MongoDB _id (must belong to logged-in user)
  */
-export const getCertificateDetail = async (req, res) => {
+export const getCertificateById = async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -192,16 +149,20 @@ export const getCertificateDetail = async (req, res) => {
             return res.status(404).json({ message: "Certificate not found" });
         }
 
-        res.json({ success: true, certificate });
+        // Ownership check
+        if (certificate.userId._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: "Access denied: not your certificate" });
+        }
 
+        res.json({ success: true, certificate });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
 /**
- * GET /certificate/verify/:certId
- * Public endpoint — verifies a certificate by its unique certificateId (UUID)
+ * GET /api/certificates/verify/:certId
+ * PUBLIC — verifies a certificate by its unique certificateId (UUID)
  */
 export const verifyCertificate = async (req, res) => {
     try {
@@ -212,28 +173,32 @@ export const verifyCertificate = async (req, res) => {
             .populate("communityId", "name");
 
         if (!certificate) {
-            return res.status(404).json({ message: "Certificate not found or invalid" });
+            return res.status(404).json({ valid: false, message: "Certificate not found or invalid" });
         }
 
         res.json({
+            valid: true,
             success: true,
-            verified: true,
-            certificate
+            user: certificate.userId.name,
+            email: certificate.userId.email,
+            course: certificate.courseName,
+            community: certificate.communityId?.name || "N/A",
+            issuedAt: certificate.issuedAt,
+            certificateId: certificate.certificateId
         });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// ─── Admin Endpoints (unchanged) ────────────────────────────────────
+// ─── Admin Controllers ────────────────────────────────────────────────────────
 
 export const createCertificate = async (req, res) => {
     try {
         if (req.user.role !== "admin")
             return res.status(403).json({ message: "Only admins allowed" });
 
-        const { userId, communityId } = req.body;
+        const { userId, communityId, courseName } = req.body;
         if (!userId || !communityId)
             return res.status(400).json({ message: "userId and communityId required" });
 
@@ -241,10 +206,14 @@ export const createCertificate = async (req, res) => {
         if (exists)
             return res.status(409).json({ message: "Certificate already issued" });
 
-        const certificate = await Certificate.create({ userId, communityId, courseName: "Admin Issued", score: 100 });
+        const certificate = await Certificate.create({
+            userId,
+            communityId,
+            courseName: courseName || "Community Projects",
+            score: 100
+        });
 
         res.status(201).json({ success: true, certificate });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -260,19 +229,17 @@ export const getAllCertificates = async (req, res) => {
             .populate("communityId", "name");
 
         res.json({ success: true, count: certificates.length, certificates });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-export const getCertificateById = async (req, res) => {
+export const getCertificateByIdAdmin = async (req, res) => {
     try {
         if (req.user.role !== "admin")
             return res.status(403).json({ message: "Only admins allowed" });
 
         const { id } = req.params;
-
         const certificate = await Certificate.findById(id)
             .populate("userId", "name email")
             .populate("communityId", "name");
@@ -281,7 +248,6 @@ export const getCertificateById = async (req, res) => {
             return res.status(404).json({ message: "Certificate not found" });
 
         res.json({ success: true, certificate });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -293,13 +259,11 @@ export const deleteCertificate = async (req, res) => {
             return res.status(403).json({ message: "Only admins allowed" });
 
         const { id } = req.params;
-
         const certificate = await Certificate.findByIdAndDelete(id);
         if (!certificate)
             return res.status(404).json({ message: "Certificate not found" });
 
         res.json({ success: true, message: "Certificate removed" });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -311,12 +275,10 @@ export const getUserCertificates = async (req, res) => {
             return res.status(403).json({ message: "Only admins allowed" });
 
         const { userId } = req.params;
-
         const certificates = await Certificate.find({ userId })
             .populate("communityId", "name");
 
         res.json({ success: true, certificates });
-
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

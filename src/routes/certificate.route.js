@@ -17,6 +17,7 @@ import {
 
 const router = express.Router();
 
+<<<<<<< HEAD
 // ─── Student-Facing Routes ─────────────────────────────────────────────────────
 
 // Get user's score (protected)
@@ -35,6 +36,26 @@ router.get("/verify/:certId", verifyCertificate);
 router.get("/detail/:id", verifyToken, checkEligibility, getCertificateById);
 
 // ─── Admin Routes (preserved) ──────────────────────────────────────────────────
+=======
+// ─── Student Routes ────────────────────────────────────────────────────────────
+
+// Get logged-in user's score
+router.get("/score", verifyToken, getUserScore);
+
+// Get logged-in user's certificates
+router.get("/my", verifyToken, getMyCertificates);
+
+// Generate a certificate (eligibility enforced here — score >= 60 checked in controller)
+router.post("/generate", verifyToken, checkEligibility, generateCertificate);
+
+// Public certificate verification (no auth needed)
+router.get("/verify/:certId", verifyCertificate);
+
+// Get single certificate by _id (ownership checked in controller)
+router.get("/detail/:id", verifyToken, getCertificateById);
+
+// ─── Admin Routes ──────────────────────────────────────────────────────────────
+>>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
 
 router.post("/", verifyToken, authorizeRoles("admin"), createCertificate);
 router.get("/", verifyToken, authorizeRoles("admin"), getAllCertificates);

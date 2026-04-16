@@ -1,20 +1,65 @@
 import mongoose from "mongoose";
 import { Certificate } from "../models/certificate.model.js";
 import { User } from "../models/user.model.js";
+import { Enrollment } from "../models/enrollment.model.js";
+import { Project } from "../models/project.model.js";
+import { Submission } from "../models/submission.model.js";
 
 // ─── Student-Facing Controllers ───────────────────────────────────────────────
 
 /**
- * GET /api/certificates/score
- * Returns the authenticated user's current score
+ * GET /api/certificates/score/:communityId
+ * Computes the student's total score for a specific community
+ * by summing grades from all reviewed submissions on that community's projects.
  */
 export const getUserScore = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select("score name");
+        const { communityId } = req.params;
+        const userId = req.user._id;
+
+        if (!communityId || !mongoose.Types.ObjectId.isValid(communityId)) {
+            return res.status(400).json({ message: "Valid communityId is required" });
+        }
+
+        const user = await User.findById(userId).select("name");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        res.json({ score: user.score, name: user.name });
+
+        // Find all non-deleted projects belonging to this community
+        const projects = await Project.find({ communityId, isDeleted: false }).select("_id");
+        const projectIds = projects.map(p => p._id);
+
+        // Aggregate reviewed submission grades for this student across community projects
+        const result = await Submission.aggregate([
+            {
+                $match: {
+                    studentId: new mongoose.Types.ObjectId(userId),
+                    projectId: { $in: projectIds },
+                    status: "reviewed",
+                    isDeleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalScore: { $sum: "$grade" },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const score = result.length > 0 ? result[0].totalScore : 0;
+        const reviewedCount = result.length > 0 ? result[0].count : 0;
+
+        res.json({
+            score,
+            name: user.name,
+            communityId,
+            reviewedSubmissions: reviewedCount,
+            totalProjects: projectIds.length,
+            eligible: score >= 60
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

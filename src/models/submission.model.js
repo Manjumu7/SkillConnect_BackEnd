@@ -72,4 +72,7 @@ const submissionSchema = new mongoose.Schema({
 
 submissionSchema.index({ projectId: 1, studentId: 1 }, { unique: true });
 
+// Compound index for leaderboard aggregation (projectId + status + isDeleted)
+submissionSchema.index({ projectId: 1, status: 1, isDeleted: 1 });
+
 export const Submission = mongoose.model("Submission", submissionSchema);

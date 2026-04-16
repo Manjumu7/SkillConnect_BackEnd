@@ -43,4 +43,7 @@ const enrollmentSchema = new mongoose.Schema({
 
 enrollmentSchema.index({ userId: 1, communityId: 1 }, { unique: true });
 
+// Compound index for leaderboard middleware & community member queries
+enrollmentSchema.index({ communityId: 1, role: 1, status: 1 });
+
 export const Enrollment = mongoose.model("Enrollment", enrollmentSchema);

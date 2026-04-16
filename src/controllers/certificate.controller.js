@@ -22,14 +22,6 @@ export const getUserScore = async (req, res) => {
 
 /**
  * POST /api/certificates/generate
-<<<<<<< HEAD
- * Generate a certificate for the logged-in user (eligibility checked by middleware)
- */
-export const generateCertificate = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { communityId, courseName } = req.body;
-=======
  * Generates a certificate if student scored >= 60 in community
  * Body: { communityId, courseName }
  */
@@ -37,14 +29,11 @@ export const generateCertificate = async (req, res) => {
     try {
         const { communityId, courseName } = req.body;
         const userId = req.user._id;
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
 
         if (!communityId || !courseName) {
             return res.status(400).json({ message: "communityId and courseName are required" });
         }
 
-<<<<<<< HEAD
-=======
         if (!mongoose.Types.ObjectId.isValid(communityId)) {
             return res.status(400).json({ message: "Invalid community ID" });
         }
@@ -60,7 +49,6 @@ export const generateCertificate = async (req, res) => {
             return res.status(403).json({ message: "Not enrolled in this community" });
         }
 
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
         // Prevent duplicate certificate for same user + community
         const existing = await Certificate.findOne({ userId, communityId });
         if (existing) {
@@ -70,16 +58,6 @@ export const generateCertificate = async (req, res) => {
             });
         }
 
-<<<<<<< HEAD
-        const certificate = await Certificate.create({
-            userId,
-            communityId,
-            courseName
-        });
-
-        res.status(201).json({ success: true, certificate });
-    } catch (err) {
-=======
         // Compute score from reviewed submissions
         const projects = await Project.find({ communityId, isDeleted: false }).select("_id");
         const projectIds = projects.map(p => p._id);
@@ -131,18 +109,13 @@ export const generateCertificate = async (req, res) => {
                 certificate: existing
             });
         }
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
         res.status(500).json({ message: err.message });
     }
 };
 
 /**
  * GET /api/certificates/my
-<<<<<<< HEAD
- * Get all certificates belonging to the logged-in user
-=======
  * Returns all certificates belonging to the logged-in student
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
  */
 export const getMyCertificates = async (req, res) => {
     try {
@@ -158,23 +131,16 @@ export const getMyCertificates = async (req, res) => {
 
 /**
  * GET /api/certificates/detail/:id
-<<<<<<< HEAD
- * Get a single certificate by its MongoDB _id (must belong to logged-in user)
-=======
  * Returns a single certificate by MongoDB _id (must belong to logged-in user)
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
  */
 export const getCertificateById = async (req, res) => {
     try {
         const { id } = req.params;
 
-<<<<<<< HEAD
-=======
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ message: "Invalid certificate ID" });
         }
 
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
         const certificate = await Certificate.findById(id)
             .populate("userId", "name email")
             .populate("communityId", "name");
@@ -196,11 +162,7 @@ export const getCertificateById = async (req, res) => {
 
 /**
  * GET /api/certificates/verify/:certId
-<<<<<<< HEAD
- * PUBLIC — verify a certificate by its unique certificateId string
-=======
  * PUBLIC — verifies a certificate by its unique certificateId (UUID)
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
  */
 export const verifyCertificate = async (req, res) => {
     try {
@@ -211,19 +173,12 @@ export const verifyCertificate = async (req, res) => {
             .populate("communityId", "name");
 
         if (!certificate) {
-<<<<<<< HEAD
-            return res.status(404).json({ valid: false, message: "Certificate not found" });
-=======
             return res.status(404).json({ valid: false, message: "Certificate not found or invalid" });
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
         }
 
         res.json({
             valid: true,
-<<<<<<< HEAD
-=======
             success: true,
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
             user: certificate.userId.name,
             email: certificate.userId.email,
             course: certificate.courseName,
@@ -236,11 +191,7 @@ export const verifyCertificate = async (req, res) => {
     }
 };
 
-<<<<<<< HEAD
-// ─── Admin Controllers (preserved from original) ─────────────────────────────
-=======
 // ─── Admin Controllers ────────────────────────────────────────────────────────
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
 
 export const createCertificate = async (req, res) => {
     try {
@@ -258,12 +209,8 @@ export const createCertificate = async (req, res) => {
         const certificate = await Certificate.create({
             userId,
             communityId,
-<<<<<<< HEAD
-            courseName: courseName || "Community Projects"
-=======
             courseName: courseName || "Community Projects",
             score: 100
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
         });
 
         res.status(201).json({ success: true, certificate });
@@ -335,8 +282,4 @@ export const getUserCertificates = async (req, res) => {
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901

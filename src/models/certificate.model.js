@@ -28,8 +28,6 @@ const certificateSchema = new mongoose.Schema({
         default: () => crypto.randomUUID()
     },
 
-<<<<<<< HEAD
-=======
     score: {
         type: Number,
         required: true,
@@ -37,7 +35,6 @@ const certificateSchema = new mongoose.Schema({
         max: 100
     },
 
->>>>>>> 3b46aa5072d110a043902c6cecaddb8bc3653901
     issuedAt: {
         type: Date,
         default: Date.now

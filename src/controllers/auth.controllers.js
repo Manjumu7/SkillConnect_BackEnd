@@ -20,7 +20,15 @@ export const generateAccessToken = (user) => {
 // ── POST /auth/register ─────────────────────────────────────────
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password, phone } = req.body;
+        const {
+            name, email, password, phone,
+            // Optional: registration type and role-specific fields
+            registrationType,
+            // Mentor fields
+            expertise, experience_years, resume,
+            // Company fields
+            company_name, company_website, company_industry, company_description
+        } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ message: "Name, email, and password are required" });
@@ -46,12 +54,31 @@ const registerUser = async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Generate OTP, hash it, and store in MongoDB
-        const plainOtp = await generateAndStore(normalizedEmail, {
+        // Build userData with optional role-specific fields
+        const userData = {
             name: name.trim(),
             hashedPassword,
-            phone: phone ? phone.trim() : "",
-        });
+            phone: phone ? String(phone).trim() : "",
+            registrationType: registrationType || "student",
+        };
+
+        // Attach mentor fields if registering as mentor
+        if (registrationType === "mentor") {
+            userData.expertise = expertise || [];
+            userData.experience_years = experience_years;
+            userData.resume = resume;
+        }
+
+        // Attach company fields if registering as company
+        if (registrationType === "company") {
+            userData.company_name = company_name;
+            userData.company_website = company_website;
+            userData.company_industry = company_industry;
+            userData.company_description = company_description;
+        }
+
+        // Generate OTP, hash it, and store in MongoDB
+        const plainOtp = await generateAndStore(normalizedEmail, userData);
 
         // Send OTP email
         try {
@@ -91,16 +118,42 @@ const verifyOTP = async (req, res) => {
 
         // OTP valid → create user
         const otpRecord = result.otpRecord;
-        const newUser = await User.create({
+        const regType = otpRecord.registrationType || "student";
+
+        // Base user data
+        const newUserData = {
             name: otpRecord.name,
             email: otpRecord.email,
             password: otpRecord.password,
             phone: otpRecord.phone,
-            role: "student",
-        });
+            role: "student",  // Always start as student; admin upgrades later
+        };
+
+        // If registering as mentor → set pending status + mentor fields
+        if (regType === "mentor") {
+            newUserData.mentorStatus = "pending";
+            newUserData.expertise = otpRecord.expertise || [];
+            newUserData.experience_years = otpRecord.experience_years;
+            newUserData.resume = otpRecord.resume;
+        }
+
+        // If registering as company → set pending status + company fields
+        if (regType === "company") {
+            newUserData.companyStatus = "pending";
+            newUserData.company_name = otpRecord.company_name;
+            newUserData.company_website = otpRecord.company_website;
+            newUserData.company_industry = otpRecord.company_industry;
+            newUserData.company_description = otpRecord.company_description;
+        }
+
+        const newUser = await User.create(newUserData);
+
+        const successMsg = regType === "student"
+            ? "Account verified and created successfully"
+            : `Account created! Your ${regType} application is pending admin approval.`;
 
         return res.status(201).json({
-            message: "Account verified and created successfully",
+            message: successMsg,
             userId: newUser._id,
         });
     } catch (error) {
@@ -138,11 +191,21 @@ const resendOTP = async (req, res) => {
             });
         }
 
-        // Re-generate new OTP, keep original user data
+        // Re-generate new OTP, keep original user data (including role-specific fields)
         const plainOtp = await generateAndStore(email, {
             name: existing.name,
             hashedPassword: existing.password,
             phone: existing.phone || "",
+            registrationType: existing.registrationType || "student",
+            // Mentor fields
+            expertise: existing.expertise || [],
+            experience_years: existing.experience_years,
+            resume: existing.resume,
+            // Company fields
+            company_name: existing.company_name,
+            company_website: existing.company_website,
+            company_industry: existing.company_industry,
+            company_description: existing.company_description,
         });
 
         // Send email
@@ -232,6 +295,51 @@ export const applyForMentor = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Mentor application submitted successfully",
+        });
+    } catch (error) {
+        console.error(error.message);
+        return res.status(500).json({ success: false, message: "Application failed" });
+    }
+};
+
+// ── POST /auth/company-register ─────────────────────────────────
+export const applyForCompany = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { company_name, company_website, company_industry, company_description } = req.body;
+
+        if (!company_name || !company_industry || !company_description) {
+            return res.status(400).json({
+                success: false,
+                message: "Company name, industry, and description are required",
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.companyStatus === "approved") {
+            return res.status(400).json({ success: false, message: "You are already an approved company" });
+        }
+
+        if (user.companyStatus === "pending") {
+            return res.status(400).json({ success: false, message: "Your company application is already under review" });
+        }
+
+        user.company_name = company_name;
+        user.company_website = company_website || "";
+        user.company_industry = company_industry;
+        user.company_description = company_description;
+        user.companyStatus = "pending";
+        user.companyRejectionReason = null;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Company application submitted successfully",
         });
     } catch (error) {
         console.error(error.message);

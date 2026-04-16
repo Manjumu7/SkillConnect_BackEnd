@@ -217,7 +217,140 @@ export const toggleBanStudent = async (req, res) => {
 };
 
 
+// ══════════════════════════════════════════════════════════════════
+// COMPANY MANAGEMENT
+// ══════════════════════════════════════════════════════════════════
 
+export const getPendingCompanies = async (req, res) => {
+    try {
+        const companies = await User.find({
+            companyStatus: "pending"
+        })
+            .select("name email company_name company_website company_industry company_description createdAt")
+            .lean();
 
+        return res.status(200).json({
+            success: true,
+            count: companies.length,
+            companies
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch pending companies"
+        });
+    }
+};
+
+export const approveCompany = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            {
+                companyStatus: "approved",
+                role: "company"
+            },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Company approved"
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Approval failed"
+        });
+    }
+};
+
+export const rejectCompany = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { reason } = req.body;
+
+        if (!reason || reason.trim() === "") {
+            return res.status(400).json({
+                success: false,
+                message: "Rejection reason is required"
+            });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        if (user.companyStatus === "approved") {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot reject an approved company"
+            });
+        }
+
+        if (user.companyStatus !== "pending") {
+            return res.status(400).json({
+                success: false,
+                message: "Only pending applications can be rejected"
+            });
+        }
+
+        user.companyStatus = "rejected";
+        user.companyRejectionReason = reason.trim();
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Company application rejected successfully"
+        });
+
+    } catch (error) {
+        console.error("Reject company error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to reject company"
+        });
+    }
+};
+
+export const getActiveCompanies = async (req, res) => {
+    try {
+        const companies = await User.find({
+            role: "company",
+            companyStatus: "approved"
+        })
+            .select("name email company_name company_website company_industry company_description createdAt")
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            count: companies.length,
+            companies
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch active companies"
+        });
+    }
+};
 
 

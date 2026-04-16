@@ -80,6 +80,20 @@ export async function generateAndStore(email, userData) {
         phone: userData.phone || "",
         attempts: 0,
         expiresAt: new Date(now + 5 * 60 * 1000), // 5 minutes
+
+        // Role-specific fields (will be "student" if not provided)
+        registrationType: userData.registrationType || "student",
+
+        // Mentor fields
+        expertise: userData.expertise || [],
+        experience_years: userData.experience_years || undefined,
+        resume: userData.resume || undefined,
+
+        // Company fields
+        company_name: userData.company_name || undefined,
+        company_website: userData.company_website || undefined,
+        company_industry: userData.company_industry || undefined,
+        company_description: userData.company_description || undefined,
     });
 
     return plainOtp;   // plain OTP goes into the email only

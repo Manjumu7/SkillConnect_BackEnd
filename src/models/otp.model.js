@@ -8,6 +8,20 @@ const otpSchema = new mongoose.Schema({
     phone: { type: String },
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
+
+    // Registration type: "student" (default), "mentor", or "company"
+    registrationType: { type: String, default: "student" },
+
+    // Mentor application fields (stored temporarily during OTP flow)
+    expertise: [{ type: String }],
+    experience_years: { type: Number },
+    resume: { type: String },
+
+    // Company application fields (stored temporarily during OTP flow)
+    company_name: { type: String },
+    company_website: { type: String },
+    company_industry: { type: String },
+    company_description: { type: String },
 });
 
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

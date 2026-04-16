@@ -106,6 +106,39 @@ const userSchema = new mongoose.Schema({
     mentorRejectionReason: {
         type: String,
         default: null
+    },
+
+    // ── Company application fields ──────────────────────────────────
+    companyStatus: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+        index: true
+    },
+
+    companyRejectionReason: {
+        type: String,
+        default: null
+    },
+
+    company_name: {
+        type: String,
+        trim: true
+    },
+
+    company_website: {
+        type: String,
+        trim: true
+    },
+
+    company_industry: {
+        type: String,
+        trim: true
+    },
+
+    company_description: {
+        type: String,
+        trim: true
     }
 
 }, { timestamps: true })

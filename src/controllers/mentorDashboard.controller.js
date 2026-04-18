@@ -213,6 +213,80 @@ export const getMentorProjects = async (req, res) => {
     }
 };
 
+export const getEnrolledUsersByCommunity = async (req, res) => {
+    try {
+        const mentorId = req.user._id;
+
+        // 1. Get all communities this mentor is assigned to
+        const mentorEnrollments = await Enrollment.find({
+            userId: mentorId,
+            role: "mentor",
+            status: "active"
+        }).populate("communityId", "name bannerImage");
+
+        if (mentorEnrollments.length === 0) {
+            return res.status(200).json({ success: true, communities: [] });
+        }
+
+        const communityIds = mentorEnrollments.map(e => e.communityId._id);
+
+        // 2. Get all student enrollments in those communities
+        const studentEnrollments = await Enrollment.find({
+            communityId: { $in: communityIds },
+            role: "student",
+            status: "active"
+        })
+            .populate("userId", "name email profileImage username phone")
+            .populate("communityId", "name bannerImage");
+
+        // 3. Group students by community
+        const communityMap = {};
+
+        // Initialize with all mentor communities (even if no students)
+        mentorEnrollments.forEach(e => {
+            const comm = e.communityId;
+            if (comm) {
+                communityMap[comm._id.toString()] = {
+                    communityId: comm._id,
+                    communityName: comm.name,
+                    bannerImage: comm.bannerImage || null,
+                    students: []
+                };
+            }
+        });
+
+        // Fill in students
+        studentEnrollments.forEach(enrollment => {
+            const student = enrollment.userId;
+            const commId = enrollment.communityId?._id?.toString();
+            if (student && commId && communityMap[commId]) {
+                communityMap[commId].students.push({
+                    _id: student._id,
+                    name: student.name,
+                    email: student.email,
+                    username: student.username,
+                    profileImage: student.profileImage,
+                    phone: student.phone,
+                    enrolledAt: enrollment.createdAt,
+                    plan: enrollment.plan
+                });
+            }
+        });
+
+        const communities = Object.values(communityMap);
+        const totalStudents = communities.reduce((sum, c) => sum + c.students.length, 0);
+
+        return res.status(200).json({
+            success: true,
+            totalCommunities: communities.length,
+            totalStudents,
+            communities
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 export const gradeSubmission = async (req, res) => {
     try {
         // 1️⃣ Role check

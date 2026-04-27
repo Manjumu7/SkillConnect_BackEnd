@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.post("/:communityId", verifyToken, authorizeRoles("admin", "mentor"), upload.single("banner"), createBatch);
 
-router.get("/", verifyToken, authorizeRoles("mentor"), getAllBatches);
+router.get("/", verifyToken, authorizeRoles("admin", "mentor"), getAllBatches);
 
 router.get("/my", verifyToken, authorizeRoles("mentor", "student"), getMyBatches);
 

@@ -6,7 +6,8 @@ import {
     generateAndStore,
     verifyAndConsume,
 } from "../Services/otp.service.js";
-import { sendOtpEmail } from "../Services/email.service.js";
+import { sendOtpEmail, sendPasswordResetEmail } from "../Services/email.service.js";
+import { PasswordReset } from "../models/passwordReset.model.js";
 
 // ── JWT helper ──────────────────────────────────────────────────
 export const generateAccessToken = (user) => {
@@ -351,4 +352,175 @@ export const applyForCompany = async (req, res) => {
     }
 };
 
-export { registerUser, loginUser, logoutUser, verifyOTP, resendOTP };
+// ── POST /auth/forgot-password ──────────────────────────────────
+const forgotPassword = async (req, res) => {
+    try {
+        let { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        email = email.trim().toLowerCase();
+
+        // Rate limit check (reuse existing OTP rate limiter)
+        const { allowed, retryAfterSeconds } = canRequestOtp(`reset:${email}`);
+        if (!allowed) {
+            return res.status(429).json({
+                message: `Please wait ${retryAfterSeconds}s before requesting another code`,
+                retryAfterSeconds,
+            });
+        }
+
+        // Check if user exists
+        const user = await User.findOne({ email });
+
+        // Always return success to prevent user enumeration
+        if (!user) {
+            return res.status(200).json({
+                message: "If an account exists with this email, a reset code has been sent."
+            });
+        }
+
+        // Generate 6-digit OTP
+        const plainOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        const hashedOtp = await bcrypt.hash(plainOtp, 10);
+
+        // Invalidate any previous reset OTPs for this email
+        await PasswordReset.deleteMany({ email });
+
+        // Store new reset OTP (5 minute expiry)
+        await PasswordReset.create({
+            email,
+            otp: hashedOtp,
+            attempts: 0,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        });
+
+        // Send email
+        try {
+            await sendPasswordResetEmail(email, plainOtp);
+        } catch (emailError) {
+            await PasswordReset.deleteMany({ email });
+            console.error("Reset email send failed:", emailError.message);
+            return res.status(502).json({ message: "Failed to send reset email. Please try again." });
+        }
+
+        return res.status(200).json({
+            message: "If an account exists with this email, a reset code has been sent."
+        });
+    } catch (error) {
+        console.error("FORGOT PASSWORD ERROR:", error.message);
+        return res.status(500).json({ message: "Something went wrong. Please try again." });
+    }
+};
+
+// ── POST /auth/verify-reset-otp ─────────────────────────────────
+const verifyResetOtp = async (req, res) => {
+    try {
+        let { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Email and OTP are required" });
+        }
+
+        email = email.trim().toLowerCase();
+        otp = otp.trim();
+
+        const resetRecord = await PasswordReset.findOne({ email });
+
+        if (!resetRecord) {
+            return res.status(400).json({ message: "No reset request found. Please request a new code." });
+        }
+
+        // Check expiry
+        if (resetRecord.expiresAt < new Date()) {
+            await PasswordReset.deleteMany({ email });
+            return res.status(400).json({ message: "Code has expired. Please request a new one." });
+        }
+
+        // Brute-force guard (max 5 attempts)
+        if (resetRecord.attempts >= 5) {
+            await PasswordReset.deleteMany({ email });
+            return res.status(429).json({ message: "Too many failed attempts. Please request a new code." });
+        }
+
+        // Compare hashed OTP
+        const isMatch = await bcrypt.compare(otp, resetRecord.otp);
+
+        if (!isMatch) {
+            resetRecord.attempts += 1;
+            await resetRecord.save();
+            const remaining = 5 - resetRecord.attempts;
+            return res.status(400).json({
+                message: remaining > 0
+                    ? `Incorrect code. ${remaining} attempt(s) remaining.`
+                    : "Too many failed attempts. Please request a new code."
+            });
+        }
+
+        // OTP valid → generate short-lived reset token
+        const resetToken = jwt.sign(
+            { email, purpose: "password-reset" },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "10m" }
+        );
+
+        // Delete the OTP record (consumed)
+        await PasswordReset.deleteMany({ email });
+
+        return res.status(200).json({
+            message: "OTP verified successfully",
+            resetToken,
+        });
+    } catch (error) {
+        console.error("VERIFY RESET OTP ERROR:", error.message);
+        return res.status(500).json({ message: "Verification failed. Please try again." });
+    }
+};
+
+// ── POST /auth/reset-password ───────────────────────────────────
+const resetPassword = async (req, res) => {
+    try {
+        const { resetToken, newPassword } = req.body;
+
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ message: "Reset token and new password are required" });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+
+        // Verify reset token
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, process.env.ACCESS_TOKEN_SECRET);
+        } catch (err) {
+            return res.status(401).json({ message: "Reset link has expired. Please start over." });
+        }
+
+        if (decoded.purpose !== "password-reset") {
+            return res.status(401).json({ message: "Invalid reset token" });
+        }
+
+        // Find user and update password
+        const user = await User.findOne({ email: decoded.email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        // Cleanup any leftover reset records
+        await PasswordReset.deleteMany({ email: decoded.email });
+
+        return res.status(200).json({ message: "Password reset successfully. You can now login." });
+    } catch (error) {
+        console.error("RESET PASSWORD ERROR:", error.message);
+        return res.status(500).json({ message: "Password reset failed. Please try again." });
+    }
+};
+
+export { registerUser, loginUser, logoutUser, verifyOTP, resendOTP, forgotPassword, verifyResetOtp, resetPassword };

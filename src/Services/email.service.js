@@ -24,6 +24,23 @@ const getOtpTemplate = (otp) => `
 </html>
 `;
 
+const getPasswordResetTemplate = (otp) => `
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+    <h1 style="color: #1e3a5f;">SkillConnect</h1>
+    <p style="font-size: 16px; color: #666;">You requested to reset your password. Use the code below to proceed:</p>
+    <div style="background-color: #1e3a5f; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center;">
+      <h2 style="color: #fbbf24; font-size: 32px; letter-spacing: 8px; margin: 0;">${otp}</h2>
+    </div>
+    <p style="color: #999; font-size: 14px;">This code is valid for <strong>5 minutes</strong>.</p>
+    <p style="color: #cc0000; font-size: 13px;">If you did not request a password reset, please ignore this email. Your account is safe.</p>
+  </div>
+</body>
+</html>
+`;
+
 /**
  * Send an email via Brevo Transactional Email REST API.
  * Docs: https://developers.brevo.com/reference/sendtransacemail
@@ -70,6 +87,15 @@ const sendOtpEmail = async (to, otp) => {
   });
 };
 
+const sendPasswordResetEmail = async (to, otp) => {
+  return await sendEmail({
+    to,
+    subject: "Reset Your Password - SkillConnect",
+    htmlContent: getPasswordResetTemplate(otp),
+    textContent: `Your password reset code is: ${otp}. Valid for 5 minutes. If you did not request this, ignore this email.`,
+  });
+};
+
 const transporter = {
   verify: () => {
     if (!BREVO_API_KEY) return Promise.resolve(false);
@@ -77,4 +103,4 @@ const transporter = {
   },
 };
 
-export { transporter, sendOtpEmail };
+export { transporter, sendOtpEmail, sendPasswordResetEmail };

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Submission } from "../models/submission.model.js";
 import { Enrollment } from "../models/enrollment.model.js";
 import { Project } from "../models/project.model.js";
+import { Community } from "../models/community.modrl.js";
 
 // ─── In-memory cache (swap for Redis in production at scale) ────
 const cache = new Map();
@@ -185,7 +186,7 @@ async function getCurrentUserRank(communityId, userId) {
     return userRank || null;
 }
 
-// ─── User's enrolled communities ────────────────────────────────
+// ─── Student's enrolled communities ─────────────────────────────
 export async function getUserCommunities(userId) {
     const enrollments = await Enrollment.find({
         userId: new mongoose.Types.ObjectId(userId),
@@ -201,4 +202,39 @@ export async function getUserCommunities(userId) {
             name: e.communityId.name,
             bannerImage: e.communityId.bannerImage || null
         }));
+}
+
+// ─── Mentor's assigned communities ──────────────────────────────
+export async function getMentorCommunities(userId) {
+    const enrollments = await Enrollment.find({
+        userId: new mongoose.Types.ObjectId(userId),
+        role: "mentor",
+        status: "active"
+    })
+        .populate("communityId", "name bannerImage")
+        .lean();
+
+    return enrollments
+        .filter(e => e.communityId) // guard against deleted communities
+        .map(e => ({
+            _id: e.communityId._id,
+            name: e.communityId.name,
+            bannerImage: e.communityId.bannerImage || null
+        }));
+}
+
+// ─── Admin: all active communities ──────────────────────────────
+export async function getAllCommunities() {
+    const communities = await Community.find({
+        isDeleted: { $ne: true }
+    })
+        .select("name bannerImage")
+        .sort({ name: 1 })
+        .lean();
+
+    return communities.map(c => ({
+        _id: c._id,
+        name: c.name,
+        bannerImage: c.bannerImage || null
+    }));
 }

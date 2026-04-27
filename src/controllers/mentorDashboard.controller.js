@@ -4,6 +4,7 @@ import { Enrollment } from "../models/enrollment.model.js";
 import { Project } from "../models/project.model.js";
 import { Submission } from "../models/submission.model.js";
 import { ProjectAssignment } from "../models/projectAssignment.model.js";
+import { User } from "../models/user.model.js";
 
 export const getMentorCommunities = async (req, res) => {
     try {
@@ -384,5 +385,160 @@ export const gradeSubmission = async (req, res) => {
             success: false,
             message: "Internal server error"
         });
+    }
+};
+
+export const getStudentProfileForMentor = async (req, res) => {
+    try {
+        const mentorId = req.user._id;
+        const { studentId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(studentId)) {
+            return res.status(400).json({ success: false, message: "Invalid student ID" });
+        }
+
+        // 1. Get mentor's assigned communities
+        const mentorEnrollments = await Enrollment.find({
+            userId: mentorId,
+            role: "mentor",
+            status: "active"
+        }).select("communityId");
+
+        const mentorCommunityIds = mentorEnrollments.map(e => e.communityId.toString());
+
+        // 2. Check student is enrolled in at least one of mentor's communities
+        const studentEnrollments = await Enrollment.find({
+            userId: studentId,
+            role: "student",
+            status: "active"
+        }).populate("communityId", "name").lean();
+
+        const sharedCommunities = studentEnrollments.filter(e =>
+            e.communityId && mentorCommunityIds.includes(e.communityId._id.toString())
+        );
+
+        if (sharedCommunities.length === 0) {
+            return res.status(403).json({
+                success: false,
+                message: "This student is not in any of your assigned communities"
+            });
+        }
+
+        // 3. Fetch student user data
+        const user = await User.findById(studentId).select("-password").lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Student not found" });
+        }
+
+        const communities = studentEnrollments
+            .filter(e => e.communityId)
+            .map(e => ({
+                _id: e.communityId._id,
+                name: e.communityId.name,
+                role: e.role,
+                plan: e.plan,
+                joinedDate: e.createdAt
+            }));
+
+        // 4. Fetch submissions
+        const submissions = await Submission.find({
+            studentId,
+            isDeleted: false
+        })
+            .populate("projectId", "title communityId")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const totalSubmissions = submissions.length;
+        const reviewedSubmissions = submissions.filter(s => s.status === "reviewed");
+        const totalScore = reviewedSubmissions.reduce((sum, s) => sum + (s.grade || 0), 0);
+        const acceptanceRate = totalSubmissions > 0
+            ? Math.round((reviewedSubmissions.length / totalSubmissions) * 100)
+            : 0;
+
+        // 5. Compute rank in first shared community
+        let communityRank = null;
+        let totalInCommunity = null;
+        if (sharedCommunities.length > 0) {
+            const primaryCommunityId = sharedCommunities[0].communityId._id;
+            const peerEnrollments = await Enrollment.find({
+                communityId: primaryCommunityId,
+                role: "student",
+                status: "active"
+            }).select("userId").lean();
+
+            const peerIds = peerEnrollments.map(e => e.userId);
+            const peerScores = await Submission.aggregate([
+                { $match: { studentId: { $in: peerIds }, isDeleted: false } },
+                { $group: { _id: "$studentId", totalScore: { $sum: { $ifNull: ["$grade", 0] } } } },
+                { $sort: { totalScore: -1 } }
+            ]);
+
+            totalInCommunity = peerScores.length;
+            const rankIdx = peerScores.findIndex(p => p._id.toString() === studentId);
+            communityRank = rankIdx >= 0 ? rankIdx + 1 : totalInCommunity + 1;
+        }
+
+        // 6. Recent submissions
+        const recentSubmissions = submissions.slice(0, 10).map(s => ({
+            _id: s._id,
+            project: s.projectId?.title || "Unknown Project",
+            status: s.status === "reviewed" ? "Accepted" : "Pending",
+            grade: s.grade,
+            date: s.createdAt
+        }));
+
+        // 7. Monthly progress (last 7 months)
+        const progressData = [];
+        const now = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+            const monthName = d.toLocaleString("en-US", { month: "short" });
+            const count = submissions.filter(
+                s => new Date(s.createdAt) >= d && new Date(s.createdAt) <= monthEnd
+            ).length;
+            progressData.push({ month: monthName, problemsSolved: count });
+        }
+
+        // 8. Difficulty breakdown by grade ranges
+        let easySolved = 0, mediumSolved = 0, hardSolved = 0;
+        reviewedSubmissions.forEach(s => {
+            const g = s.grade || 0;
+            if (g >= 70) easySolved++;
+            else if (g >= 40) mediumSolved++;
+            else hardSolved++;
+        });
+
+        return res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                name: user.name,
+                username: user.username || "",
+                email: user.email,
+                phone: user.phone,
+                profileImage: user.profileImage || null,
+                bio: user.bio || "",
+                joinedDate: user.createdAt,
+                communities,
+                problemsSolved: {
+                    total: totalSubmissions,
+                    easy: easySolved,
+                    medium: mediumSolved,
+                    hard: hardSolved
+                },
+                score: totalScore,
+                submissions: totalSubmissions,
+                acceptanceRate,
+                communityRank,
+                totalInCommunity,
+                recentSubmissions,
+                progressData
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
 };

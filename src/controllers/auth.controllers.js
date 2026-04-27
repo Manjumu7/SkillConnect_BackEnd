@@ -34,6 +34,10 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ message: "Name, email, and password are required" });
         }
 
+        // if (password.length < 8) {
+        //     return res.status(400).json({ message: "Password must be at least 8 characters long" });
+        // }
+
         const normalizedEmail = email.trim().toLowerCase();
 
         // Duplicate check against verified users
@@ -79,7 +83,7 @@ const registerUser = async (req, res) => {
 
         // Generate OTP, hash it, and store in MongoDB
         const plainOtp = await generateAndStore(normalizedEmail, userData);
-
+        console.log("OTP sent to your email", plainOtp);
         // Send OTP email
         try {
             await sendOtpEmail(normalizedEmail, plainOtp);

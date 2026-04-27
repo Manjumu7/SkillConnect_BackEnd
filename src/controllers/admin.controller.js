@@ -155,6 +155,7 @@ export const getActiveMentors = async (req, res) => {
                     userId: "$_id",
                     name: 1,
                     email: 1,
+                    updatedAt: 1,
                     // This creates the array of community names for the UI
                     communities: "$communityData.name",
                     totalCommunities: { $size: "$communityData" }

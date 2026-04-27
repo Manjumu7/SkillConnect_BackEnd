@@ -52,6 +52,8 @@ const communitySchema = new mongoose.Schema({
         default: "public"
     },
 
+    price: { type: Number, default: 0 },
+
     isDeleted: { type: Boolean, default: false },
 
     bannerImage: String,

@@ -367,7 +367,7 @@ export const getProPayments = async (req, res) => {
             plan: "pro"
         })
             .populate("userId", "name email profileImage")
-            .populate("communityId", "name")
+            .populate("communityId", "name price")
             .sort({ updatedAt: -1 })
             .lean();
 
@@ -377,6 +377,7 @@ export const getProPayments = async (req, res) => {
             studentEmail: e.userId?.email || "",
             communityId: e.communityId?._id?.toString() || "",
             communityName: e.communityId?.name || "Unknown",
+            communityPrice: e.communityId?.price || 0,
             plan: e.plan,
             status: e.status,
             paidAt: e.updatedAt,

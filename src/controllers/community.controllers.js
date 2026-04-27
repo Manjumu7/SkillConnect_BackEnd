@@ -8,7 +8,7 @@ export const createCommunity = async (req, res) => {
         if (req.user.role !== "admin")
             return res.status(403).json({ message: "Access denied" });
 
-        const { name, description, visibility } = req.body;
+        const { name, description, visibility, price } = req.body;
         if (!name) return res.status(400).json({ message: "Name is required" });
 
         const exists = await Community.findOne({ name, isDeleted: false });
@@ -24,6 +24,7 @@ export const createCommunity = async (req, res) => {
             name,
             description,
             visibility,
+            price: price ? Number(price) : 0,
             bannerImage,
             createdBy: req.user._id
         });
@@ -71,12 +72,13 @@ export const updateCommunity = async (req, res) => {
             return res.status(403).json({ message: "Access denied" });
 
         const { id } = req.params;
-        const { name, description, visibility } = req.body;
+        const { name, description, visibility, price } = req.body;
 
         const updateData = {};
         if (name) updateData.name = name;
         if (description) updateData.description = description;
         if (visibility) updateData.visibility = visibility;
+        if (price !== undefined) updateData.price = Number(price);
 
         if (req.file) {
             const result = await uploadToCloudinary(req.file.buffer, "communities");

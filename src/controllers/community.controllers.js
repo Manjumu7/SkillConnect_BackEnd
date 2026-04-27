@@ -24,7 +24,7 @@ export const createCommunity = async (req, res) => {
             name,
             description,
             visibility,
-            price: price ? Number(price) : 0,
+            price: price ? Number(price) : 4200,
             bannerImage,
             createdBy: req.user._id
         });

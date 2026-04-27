@@ -19,7 +19,7 @@ const moduleSchema = new mongoose.Schema({
         }
     ],
 
-    youtubeUrl: { type: String }
+    youtubeUrl: { type: String },
 
 }, { timestamps: true });
 
@@ -52,7 +52,7 @@ const communitySchema = new mongoose.Schema({
         default: "public"
     },
 
-    price: { type: Number, default: 0 },
+    price: { type: Number, default: 4200 },
 
     isDeleted: { type: Boolean, default: false },
 

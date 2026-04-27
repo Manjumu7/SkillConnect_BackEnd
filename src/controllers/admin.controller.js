@@ -356,3 +356,44 @@ export const getActiveCompanies = async (req, res) => {
 };
 
 
+// ══════════════════════════════════════════════════════════════════
+// PAYMENT RECORDS (Pro upgrades)
+// ══════════════════════════════════════════════════════════════════
+
+export const getProPayments = async (req, res) => {
+    try {
+        const payments = await Enrollment.find({
+            role: "student",
+            plan: "pro"
+        })
+            .populate("userId", "name email profileImage")
+            .populate("communityId", "name")
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        const records = payments.map(e => ({
+            _id: e._id,
+            studentName: e.userId?.name || "Unknown",
+            studentEmail: e.userId?.email || "",
+            communityId: e.communityId?._id?.toString() || "",
+            communityName: e.communityId?.name || "Unknown",
+            plan: e.plan,
+            status: e.status,
+            paidAt: e.updatedAt,
+            enrolledAt: e.createdAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            count: records.length,
+            payments: records
+        });
+
+    } catch (error) {
+        console.error("getProPayments error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch payment records"
+        });
+    }
+};

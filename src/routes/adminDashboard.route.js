@@ -3,7 +3,7 @@ import verifyToken from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/authRole.middleware.js";
 import { AllBatchedOfACommunity } from "../controllers/batch.controller.js";
 import { allEnrolledStudentsOfACommunity } from "../controllers/community.controllers.js";
-import { approveMentor, getActiveMentors, getPendingMentors, rejectMentor, getPendingCompanies, approveCompany, rejectCompany, getActiveCompanies } from "../controllers/admin.controller.js";
+import { approveMentor, getActiveMentors, getPendingMentors, rejectMentor, getPendingCompanies, approveCompany, rejectCompany, getActiveCompanies, getProPayments } from "../controllers/admin.controller.js";
 
 const router = express.Router();
 
@@ -21,6 +21,9 @@ router.get("/pending-companies-list", verifyToken, authorizeRoles("admin"), getP
 router.get("/approve-company/:userId", verifyToken, authorizeRoles("admin"), approveCompany)
 router.post("/reject-company/:userId", verifyToken, authorizeRoles("admin"), rejectCompany)
 router.get("/active-companies", verifyToken, authorizeRoles("admin"), getActiveCompanies)
+
+// Payment records
+router.get("/payments", verifyToken, authorizeRoles("admin"), getProPayments)
 
 
 export default router;
